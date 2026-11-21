@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Тренер Гамбит</title>
+<meta name="description" content="Разбор шахматных партий по PGN: доска, комментарии тренера, звук и поиск партий по нику Chess.com.">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+:root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{background:#020617;color:#e2e8f0;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+</style>
+</head>
+<body>
+<div id="app" class="mx-auto w-full max-w-md px-4 pb-10 pt-6"></div>
+<script>
+/* ── Движок: разбор PGN ── */
+const N_D=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]],K_D=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]],ROOK=[[1,0],[-1,0],[0,1],[0,-1]],BISH=[[1,1],[1,-1],[-1,1],[-1,-1]];
+const white=p=>p===p.toUpperCase();
+const initial=()=>"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR".replace(/\//g,"").replace(/\d/g,d=>" ".repeat(+d)).split("").map(c=>c===" "?null:c);
+function attacked(b,sq,by){const r=sq>>3,c=sq&7;const get=(rr,cc)=>rr<0||rr>7||cc<0||cc>7?null:b[rr*8+cc];const is=(p,t)=>p&&p.toUpperCase()===t&&white(p)===(by==="w");const pr=by==="w"?r+1:r-1;
+if(is(get(pr,c-1),"P")||is(get(pr,c+1),"P"))return true;
+for(const[a,d]of N_D)if(is(get(r+a,c+d),"N"))return true;
+for(const[a,d]of K_D)if(is(get(r+a,c+d),"K"))return true;
+for(const[dirs,t]of[[ROOK,"R"],[BISH,"B"]])for(const[a,d]of dirs){let rr=r+a,cc=c+d;while(rr>=0&&rr<8&&cc>=0&&cc<8){const p=b[rr*8+cc];if(p){if(is(p,t)||is(p,"Q"))return true;break}rr+=a;cc+=d}}
+return false}
+function reach(b,f,t,ep){const p=b[f],q=b[t];if(q&&white(q)===white(p))return false;const fr=f>>3,fc=f&7,tr=t>>3,tc=t&7,dr=tr-fr,dc=tc-fc,T=p.toUpperCase();
+if(T==="N")return Math.abs(dr)*Math.abs(dc)===2;
+if(T==="K")return Math.max(Math.abs(dr),Math.abs(dc))===1;
+if(T==="P"){const dir=white(p)?-1:1,st=white(p)?6:1;if(dc===0)return!q&&(dr===dir||(dr===2*dir&&fr===st&&!b[(fr+dir)*8+fc]));return Math.abs(dc)===1&&dr===dir&&(!!q||t===ep)}
+const diag=Math.abs(dr)===Math.abs(dc),orth=dr===0||dc===0;
+if((dr===0&&dc===0)||!(T==="B"?diag:T==="R"?orth:diag||orth))return false;
+const sr=Math.sign(dr),sc=Math.sign(dc);
+for(let r=fr+sr,c=fc+sc;r!==tr||c!==tc;r+=sr,c+=sc)if(b[r*8+c])return false;
+return true}
+function play(s,san){const b=[...s.b],w=s.turn==="w",next=w?"b":"w",clean=san.replace(/[+#!?]/g,"");
+if(/^[O0]-[O0](-[O0])?$/.test(clean)){const lg=clean.length>3,row=w?7:0,from=row*8+4,to=row*8+(lg?2:6);b[to]=b[from];b[from]=null;const rf=row*8+(lg?0:7),rt=row*8+(lg?3:5);b[rt]=b[rf];b[rf]=null;return{b,turn:next,ep:null,mv:[from,to],cap:false}}
+const m=clean.match(/^([KQRBN])?([a-h])?([1-8])?(x)?([a-h][1-8])(?:=?([QRBN]))?$/);if(!m)throw 0;
+const[,pc="P",fcH,frH,,tsq,promo]=m;const to=(8-+tsq[1])*8+"abcdefgh".indexOf(tsq[0]);const me=w?pc:pc.toLowerCase();let from=-1;
+for(let i=0;i<64&&from<0;i++){if(b[i]!==me)continue;if(fcH&&"abcdefgh"[i&7]!==fcH)continue;if(frH&&8-(i>>3)!==+frH)continue;if(!reach(b,i,to,s.ep))continue;
+const nb=[...b];nb[to]=nb[i];nb[i]=null;if(pc==="P"&&to===s.ep&&(i&7)!==(to&7))nb[(i>>3)*8+(to&7)]=null;
+if(!attacked(nb,nb.indexOf(w?"K":"k"),next))from=i}
+if(from<0)throw 0;
+const isEp=pc==="P"&&to===s.ep&&(from&7)!==(to&7),cap=!!b[to]||isEp;
+if(isEp)b[(from>>3)*8+(to&7)]=null;
+b[to]=promo?(w?promo:promo.toLowerCase()):b[from];b[from]=null;
+const ep=pc==="P"&&Math.abs((to>>3)-(from>>3))===2?(from+to)/2:null;
+return{b,turn:next,ep,mv:[from,to],cap}}
+function build(pgn){const body=pgn.replace(/\[[^\]]*\]/g,"").replace(/\{[^}]*\}/g,"").replace(/\([^)]*\)/g,"").replace(/;[^\n]*/g,"").replace(/\$\d+/g,"").replace(/\d+\.+/g," ");
+const toks=body.split(/\s+/).filter(t=>t&&!/^(1-0|0-1|1\/2-1\/2|\*)$/.test(t));
+let s={b:initial(),turn:"w",ep:null,mv:null};const out=[{s,san:null}];
+for(const t of toks){try{s=play(s,t);out.push({s,san:t})}catch{break}}
+return out}
+const hdr=p=>Object.fromEntries([...p.matchAll(/\[(\w+)\s+"([^"]*)"\]/g)].map(m=>[m[1],m[2]]));
+const openingName=p=>{const h=hdr(p);if(h.Opening)return h.Opening;const u=h.ECOUrl;if(!u)return"";const sg=u.split("/").pop().split("-"),i=sg.findIndex(x=>/^\d/.test(x));return(i<0?sg:sg.slice(0,i)).join(" ")};
+const VAL={p:1,n:3,b:3,r:5,q:9};
+const material=b=>b.reduce((a,p)=>p&&VAL[p.toLowerCase()]?a+(white(p)?1:-1)*VAL[p.toLowerCase()]:a,0);
+const swing=(pos,i)=>i<1||i+1>=pos.length?0:(material(pos[i+1].s.b)-material(pos[i-1].s.b))*(i%2?1:-1);
+
+/* ── Тексты ── */
+const x=(l,ru,en)=>l==="ru"?ru:en;
+const TXT={
+ru:{title:"Тренер Гамбит",sub:"Разбор партии по PGN",lbl:"Вставьте PGN партии",ph:"1. e4 e5 2. Nf3 Nc6 3. Bb5 …",go:"Разобрать",demo:"Открыть демо-партию (Опера, 1858)",tip:"Где взять PGN: Chess.com или Lichess → партия → «Поделиться» → PGN.",bad:"Не удалось прочитать ходы. Проверьте PGN.",back:"Назад к вводу",prev:"Назад",next:"Вперёд",start:"Старт",mv:(n,s)=>`Ход ${n}: ${s}`,ask:"Спросите тренера…",think:"Гамбит думает…",flip:"Перевернуть доску",
+chips:{analyse:"Разбери ход",opening:"Что с дебютом?",mistake:"Это ошибка?",eval:"Оцени позицию",plan:"Что дальше?"}},
+en:{title:"Coach Gambit",sub:"Review a game from PGN",lbl:"Paste the game PGN",ph:"1. e4 e5 2. Nf3 Nc6 3. Bb5 …",go:"Analyse",demo:"Open demo game (Opera Game, 1858)",tip:"Where to get PGN: Chess.com or Lichess → game → Share → PGN.",bad:"Couldn’t read the moves. Check the PGN.",back:"Back to input",prev:"Back",next:"Next",start:"Start",mv:(n,s)=>`Move ${n}: ${s}`,ask:"Ask the coach…",think:"Gambit is thinking…",flip:"Flip board",
+chips:{analyse:"Analyse this move",opening:"What about the opening?",mistake:"Was that a mistake?",eval:"Evaluate the position",plan:"What next?"}}};
+const ACC={ru:{q:"ферзя",r:"ладью",b:"слона",n:"коня",p:"пешку"},en:{q:"the queen",r:"a rook",b:"a bishop",n:"a knight",p:"a pawn"}};
+const POOL={
+N:[["Конь прыгнул — и сразу видно, что кто-то любит вилки.","A knight jumps in — someone clearly loves a good fork."],["Конь на новом поле. Главное, чтобы не в гости к чужой пешке.","Knight on a new square. Just don’t walk into a pawn."]],
+B:[["Слон вышел на диагональ. Диагонали любят тех, кто не торопится.","Bishop on the diagonal. Diagonals reward the patient."],["Слон ожил. Королю стало чуть спокойнее.","The bishop wakes up. The king can breathe a little easier."]],
+R:[["Ладья заняла линию. Тяжёлая артиллерия подтягивается.","Rook takes the file. The heavy artillery is arriving."]],
+Q:[["Ферзь в деле. Рановато или вовремя — решает позиция, а не азарт.","The queen steps out. Too early or on time — the position decides."]],
+K:[["Король шагнул сам. Либо расчёт, либо отвага — проверим следующим ходом.","The king steps out. Calculation or bravery — we’ll see next move."]],
+P:[["Пешка вперёд. Назад она не ходит — как и мои комплименты.","Pawn forward. It never goes back — much like my compliments."],["Тихий пешечный ход. Из таких и строятся позиции.","A quiet pawn move. Positions are built from these."]]};
+const pick=(a,k)=>a[k%a.length];
+function remark(pos,i,l){const{san,s}=pos[i];
+if(!san)return x(l,"Начальная позиция. Тут пока никто не ошибся — наслаждайтесь.","Starting position. Nobody has blundered yet — enjoy it.");
+const side=i%2?x(l,"Белые","White"):x(l,"Чёрные","Black");
+if(san.includes("#"))return x(l,`Мат. ${side} ставят точку, остальное — лирика.`,`Checkmate. ${side} put the full stop on it; the rest is poetry.`);
+if(san.startsWith("O-O"))return x(l,`${side} рокируются. Король убрался с дороги — признак здравого смысла.`,`${side} castle. The king gets out of the way — good sense.`);
+if(san.includes("="))return x(l,`Превращение! ${side} получили вторую жизнь, как в аркаде.`,`Promotion! ${side} get a second life, arcade style.`);
+const taken=s.cap&&pos[i-1].s.b[s.mv[1]];
+if(taken&&taken.toLowerCase()==="q")return x(l,"Ферзь снят с доски. Это либо гениально, либо очень больно.","The queen comes off the board. Either genius or very painful.");
+if(san.includes("+"))return x(l,`Шах! ${side} напоминают королю, что он не в отпуске.`,`Check! ${side} remind the king he’s not on holiday.`);
+if(taken)return x(l,`Размен. Забрали ${ACC.ru[taken.toLowerCase()]||"фигуру"}. Проверьте, не осталось ли что-то под боем.`,`A capture — they took ${ACC.en[taken.toLowerCase()]||"a piece"}. Check whether anything is left hanging.`);
+if(i===1){if(san==="e4")return x(l,"1.e4 — классика, как утренний кофе: просто и бодрит.","1.e4 — the classic. Like morning coffee: simple and invigorating.");if(san==="d4")return x(l,"1.d4 — любите, когда всё под контролем? Уважаю.","1.d4 — fond of having things under control? Respect.");return x(l,`1.${san} — нестандартно. Или вы ломаете теорию, или она вас.`,`1.${san} — unusual. Either you break theory, or it breaks you.`)}
+const p=pick(POOL[san[0] in POOL?san[0]:"P"],i);return l==="ru"?p[0]:p[1]}
+const greet=(op,l)=>op?x(l,`Играем «${op}»? Люблю, когда начинают с идеей. Листайте ходы — буду комментировать.`,`Playing the ${op}? I like players who start with an idea. Step through the moves — I’ll comment.`):x(l,"Партия загружена. Листайте ходы, а я буду комментировать и подкалывать.","Game loaded. Step through the moves and I’ll comment — and tease.");
+const PN={ru:{K:"Король",Q:"Ферзь",R:"Ладья",B:"Слон",N:"Конь",P:"Пешка"},en:{K:"King",Q:"Queen",R:"Rook",B:"Bishop",N:"Knight",P:"Pawn"}};
+function analysis(pos,i,n,l){const san=pos[i].san;if(!san)return x(l,"Начальная позиция: перейдите к ходу и спросите снова.","Starting position: step to a move and ask again.");
+const s=pos[i].s,pc=/^[KQRBN]/.test(san)?san[0]:"P",d=(san.replace(/[+#]/g,"").match(/[a-h][1-8]/g)||[]).pop()||"",P=PN[l][pc],cat=san.includes("#")?0:san.startsWith("O-O")?1:san.includes("=")?2:san.includes("+")?3:s.cap?4:5;
+const A=[x(l,"Мат — партия решена.","Checkmate — the game is decided."),x(l,"Рокировка: король в безопасности, ладья вступает в игру.","Castling: the king is safe and the rook joins the game."),x(l,`Превращение на ${d}: пешка получает новую жизнь.`,`Promotion on ${d}: the pawn gets a new life.`),x(l,`${P} на ${d} с шахом — сопернику придётся отвечать.`,`${P} to ${d} with check — the opponent must respond.`),x(l,`${P} берёт на ${d} — проверьте, не осталось ли что-то под боем.`,`${P} captures on ${d} — check nothing is left hanging.`),x(l,`${P} идёт на ${d}.`,`${P} goes to ${d}.`)][cat];
+const ph=i<=20?0:i<=60?1:2,m=material(s.b),sw=swing(pos,i),k=n%5;
+const B=[x(l,"Идея: "+["развитие фигур и борьба за центр.","активность фигур и давление на слабые пункты.","активный король и проходные пешки."][ph],"Idea: "+["develop pieces and fight for the centre.","piece activity and pressure on weak points.","an active king and passed pawns."][ph]),
+m===0?x(l,"Плюс хода: материал остаётся равным, значит, всё решат планы.","Upside: material stays equal, so plans will decide."):x(l,`Плюс хода: материал — ${m>0?"белые":"чёрные"} впереди на ${Math.abs(m)}. Не дайте преимуществу растаять.`,`Upside: material — ${m>0?"White":"Black"} is ahead by ${Math.abs(m)}. Don’t let it melt away.`),
+sw<=-3?x(l,"⚠ Риск: после ответа материал уходит — жертва или зевок?","⚠ Risk: material drops after the reply — sacrifice or blunder?"):x(l,"Риск: проверьте ответ соперника — шахи, взятия, угрозы, в таком порядке.","Risk: check the reply — checks, captures, threats, in that order."),
+x(l,`Сравните ${san} с ходом, который улучшает вашу худшую фигуру.`,`Compare ${san} with a move that improves your worst-placed piece.`),
+x(l,`Тренировка: назовите три ответа соперника на ${san}, затем сверьтесь с партией.`,`Drill: name three replies to ${san}, then compare with the game.`)][k];
+return `(${k+1}/5) ${A} ${B}`}
+function classify(q){const t=q.toLowerCase();if(/разбер|анализ|analy[sz]e|review/.test(t))return"analyse";if(/дебют|opening/.test(t))return"opening";if(/ошиб|зевок|плох|blunder|mistake|wrong|bad/.test(t))return"mistake";if(/оцен|позици|лучше|материал|eval|position|better|material|winning/.test(t))return"eval";if(/дальше|совет|план|что делать|next|advice|plan|what should/.test(t))return"plan";return"other"}
+function reply(intent,pos,i,op,k,l){
+if(intent==="opening")return op?x(l,`Дебют — «${op}». Теорию знать полезно, но понимать идеи полезнее: куда идут фигуры и зачем.`,`The opening is the ${op}. Knowing theory helps, but understanding the ideas helps more: where the pieces go, and why.`):x(l,"Заголовок партии не называет дебют. Смотрите на развитие фигур и центр.","The header doesn’t name the opening, so judge it by development and the centre.");
+if(intent==="mistake"){const f=pos.findIndex((_,j)=>swing(pos,j)<=-3);if(f>0)return x(l,`Подозрительный момент — ход ${Math.ceil(f/2)} (${pos[f].san}): после ответа соперника материал ушёл. Жертва это или зевок — решать вам, но посмотрите.`,`Suspicious moment — move ${Math.ceil(f/2)} (${pos[f].san}): material drops after the reply. Sacrifice or blunder — your call, but take a look.`)}
+if(intent==="mistake")return pick([x(l,"Я бы ткнул в момент, где вы торопились. Пролистайте на пару ходов назад — найдёте сами.","I’d poke at the moment you were rushing. Step back a couple of moves — you’ll spot it."),x(l,"Ошибки любят размены, после которых забывают про шах. Проверьте каждое взятие.","Mistakes love exchanges where everyone forgets about a check. Re-check every capture.")],k);
+if(intent==="eval"){const m=material(pos[i].s.b);if(m===0)return x(l,"Материал равный. Значит, всё решат планы и нервы.","Material is equal. So plans and nerves will decide.");const who=m>0?x(l,"белые","White"):x(l,"чёрные","Black");return x(l,`Материал: ${who} впереди на ${Math.abs(m)}. Но счёт — не приговор, если король соперника без укрытия.`,`Material: ${who} is ahead by ${Math.abs(m)}. But the count isn’t a verdict if the opposing king has no shelter.`)}
+if(intent==="plan")return pick([x(l,"Улучшайте худшую фигуру. Скучно, но работает в девяти партиях из десяти.","Improve your worst piece. Boring, but it works nine games in ten."),x(l,"Проверьте шахи, взятия и угрозы — в таком порядке. Потом ходите.","Check checks, captures and threats — in that order. Then move.")],k);
+const san=pos[i].san;return pick([x(l,`Интересный вопрос. А вы сами что думаете о ходе ${san||"в начальной позиции"}?`,`Interesting question. What do you think of ${san?"the move "+san:"the starting position"} yourself?`),x(l,"Хмм… Я бы сначала посмотрел, какие фигуры у вас ещё не играют.","Hmm… I’d first look at which of your pieces aren’t playing yet.")],k)}
+
+/* ── Доска ── */
+const GLYPH={k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"};
+function boardSvg(s,flip){const kSq=s.b.indexOf(s.turn==="w"?"K":"k"),chk=kSq>=0&&attacked(s.b,kSq,s.turn==="w"?"b":"w");let o="";
+for(let d=0;d<64;d++){const r=d>>3,c=d&7,idx=flip?63-d:d,p=s.b[idx],px=c*10,py=r*10,dk=(r+c)%2,tc=dk?"#d6dae8":"#6f80ab";
+o+=`<rect x="${px}" y="${py}" width="10" height="10" fill="${dk?"#6f80ab":"#d6dae8"}"/>`;
+if(s.mv&&s.mv.includes(idx))o+=`<rect x="${px}" y="${py}" width="10" height="10" fill="#fbbf24" opacity=".55"/>`;
+if(chk&&idx===kSq)o+=`<circle cx="${px+5}" cy="${py+5}" r="4.6" fill="#ef4444" opacity=".6"/>`;
+if(c===0)o+=`<text x="${px+.7}" y="${py+2.6}" font-size="2.3" fill="${tc}" font-weight="700">${8-(idx>>3)}</text>`;
+if(r===7)o+=`<text x="${px+9.3}" y="${py+9.3}" font-size="2.3" text-anchor="end" fill="${tc}" font-weight="700">${"abcdefgh"[idx&7]}</text>`;
+if(p){const w=white(p);o+=`<text x="${px+5}" y="${py+7.7}" font-size="8.4" text-anchor="middle" paint-order="stroke" stroke-linejoin="round" font-family="'Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans',serif" fill="${w?"#fbf8ef":"#161820"}" stroke="${w?"#14161d":"#e6e9f4"}" stroke-width="${w?.45:.25}">${GLYPH[p.toLowerCase()]}&#xFE0E;</text>`}}
+return`<svg viewBox="0 0 80 80" class="w-full rounded-xl block shadow-2xl shadow-black/50">${o}</svg>`}
+
+/* ── Приложение ── */
+const DEMO=`[Event "Opera Game"]\n[White "Paul Morphy"]\n[Black "Duke of Brunswick & Count Isouard"]\n[Opening "Philidor Defense"]\n\n1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0`;
+const app=document.getElementById("app");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let lang="ru",view="home",pgnTxt="",err=false,pos=[],idx=0,chat=[],op="",flip=false,typing=false,names=["",""],draft="";
+let games=[],an={},nick="",loading=false,searchErr="";
+async function search(){const u=nick.trim().toLowerCase().replace(/\s+/g,"");if(!u||loading)return;loading=true;searchErr="";render();
+const fail=m=>{loading=false;searchErr=m;render()};
+try{let ar;try{ar=await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(u)}/games/archives`)}catch{return fail(x(lang,"Нет связи с Chess.com. Проверьте интернет. Если сайт открыт внутри другого приложения, поиск там может быть заблокирован — откройте его по своему адресу.","Can’t reach Chess.com. Check your connection. If the site is opened inside another app, search may be blocked there — open it at its own address."))}
+if(ar.status===404)return fail(x(lang,`Игрок «${esc(u)}» не найден. Нужен ник (логин) на Chess.com, а не имя.`,`Player “${esc(u)}” not found. Use your Chess.com username, not your name.`));
+if(!ar.ok)return fail(x(lang,"Chess.com сейчас не отвечает. Попробуйте позже.","Chess.com isn’t responding. Try again later."));
+const urls=(await ar.json()).archives.slice(-12).reverse();let all=[];
+for(const url of urls){const r=await fetch(url);if(!r.ok)continue;all=all.concat((await r.json()).games||[]);if(all.filter(g=>g.pgn).length>=30)break}
+all=all.filter(g=>g.pgn).sort((p,q)=>q.end_time-p.end_time).slice(0,50);
+if(!all.length)return fail(x(lang,"У этого игрока нет партий за последний год.","No games from the last year for this player."));
+games=all.map(g=>g.pgn);loading=false;view="list";render()}
+catch{fail(x(lang,"Что-то пошло не так при загрузке партий. Попробуйте ещё раз.","Something went wrong loading games. Try again."))}}
+function loadFile(t){const g=t.split(/(?=^\[Event\s)/m).map(s=>s.trim()).filter(s=>/1\./.test(s));if(!g.length){pgnTxt="";err=true;view="home";render();return}games=g;if(g.length===1)open(g[0]);else{view="list";render()}}
+const SK="gambit-games";
+const saved=()=>{try{return JSON.parse(localStorage.getItem(SK))||[]}catch{return[]}};
+function save(txt){try{const h=hdr(txt),t=h.White&&h.Black?h.White+" — "+h.Black:txt.slice(0,30),l=saved().filter(g=>g.p!==txt);l.unshift({t,p:txt});localStorage.setItem(SK,JSON.stringify(l.slice(0,10)))}catch{}}
+const ctext=m=>m.kind==="analysis"?analysis(pos,m.at,m.n,lang):m.kind==="ai"?m.text:m.kind==="greet"?greet(op,lang):reply(m.intent,pos,m.at,op,m.k,lang);
+
+function head(){const T=TXT[lang];return`<header class="mb-5 flex items-center gap-2.5">
+<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-2xl text-slate-900">♛</div>
+<div class="min-w-0 flex-1"><h1 class="truncate text-lg font-semibold leading-tight text-white" style="font-family:Georgia,serif">${T.title}</h1><p class="truncate text-xs text-slate-400">${T.sub}</p></div>
+<button data-a="snd" aria-label="Sound" aria-pressed="${sound}" class="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-sm">${sound?"🔊":"🔇"}</button>
+<div class="flex shrink-0 overflow-hidden rounded-lg border border-slate-700 text-xs font-semibold">${["ru","en"].map(l=>`<button data-a="lang" data-v="${l}" aria-pressed="${lang===l}" class="px-2.5 py-2.5 ${lang===l?"bg-amber-400 text-slate-900":"bg-slate-900 text-slate-300"}">${l.toUpperCase()}</button>`).join("")}</div></header>`}
+
+function render(){stopAuto();const T=TXT[lang];document.documentElement.lang=lang;
+if(view==="home"){app.innerHTML=head()+`<div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+<label class="mb-2 block text-sm text-slate-300">${T.lbl}</label>
+<textarea id="pgn" rows="6" placeholder="${T.ph}" autocapitalize="none" autocorrect="off" class="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-amber-400">${esc(pgnTxt)}</textarea>
+<button data-a="analyse" class="mt-2 w-full rounded-xl bg-amber-400 py-2.5 text-sm font-semibold text-slate-900 hover:bg-amber-300">${T.go}</button>
+${err?`<p class="mt-3 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-300">${T.bad}</p>`:""}
+<div class="mt-4 flex gap-2"><input id="nick" value="${esc(nick)}" placeholder="${x(lang,"Ник на Chess.com","Chess.com username")}" autocapitalize="none" autocorrect="off" class="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-amber-400"><button data-a="search" class="rounded-xl bg-slate-800 px-4 text-sm font-medium text-white hover:bg-slate-700">${loading?"…":x(lang,"Найти","Search")}</button></div>${searchErr?`<p class="mt-2 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-300">${searchErr}</p>`:""}
+<label class="mt-3 flex w-full cursor-pointer items-center justify-center rounded-xl border border-dashed border-slate-600 py-3 text-sm text-slate-200 hover:border-amber-400">📂 ${x(lang,"Загрузить файл .pgn","Upload a .pgn file")}<input id="file" type="file" accept=".pgn,.txt,text/plain" class="sr-only"></label>
+<button data-a="demo" class="mt-3 block text-sm text-slate-400 hover:text-amber-300">▶ ${T.demo}</button>
+<p class="mt-3 text-xs text-slate-500">${T.tip}</p></div>${saved().length?`<h2 class="mb-2 mt-5 px-1 text-sm text-slate-400">${x(lang,"Сохранённые партии","Saved games")}</h2><ul class="space-y-2">${saved().map((g,i)=>`<li><button data-a="saved" data-v="${i}" class="w-full truncate rounded-xl border border-slate-800 bg-slate-900 p-3 text-left text-sm text-white hover:border-amber-400/60">${esc(g.t)}</button></li>`).join("")}</ul>`:""}`;return}
+if(view==="list"){app.innerHTML=head()+`<button data-a="back" class="mb-3 text-sm text-slate-400 hover:text-white">← ${T.back}</button><h2 class="mb-2 px-1 text-sm text-slate-300">${x(lang,"Партий в файле","Games in file")}: ${games.length}</h2><ul class="space-y-2">${games.slice(0,100).map((g,i)=>{const h=hdr(g);return`<li><button data-a="pick" data-v="${i}" class="w-full rounded-xl border border-slate-800 bg-slate-900 p-3 text-left hover:border-amber-400/60"><span class="block truncate text-sm text-white">${esc((h.White||"?")+" — "+(h.Black||"?"))}</span><span class="block truncate text-xs text-slate-400">${esc([h.Result,h.Date,h.Event].filter(Boolean).join(" · "))}</span></button></li>`}).join("")}</ul>${games.length>100?`<p class="mt-3 px-1 text-xs text-slate-500">${x(lang,"Показаны первые 100 партий.","Showing the first 100 games.")}</p>`:""}`;return}
+const h=hdr(pgnTxt);
+app.innerHTML=head()+`<button data-a="back" class="mb-3 text-sm text-slate-400 hover:text-white">← ${games.length>1?x(lang,"Назад к списку","Back to list"):T.back}</button>
+${op?`<p class="mb-2 px-1 text-sm text-amber-300">${esc(op)}</p>`:""}
+<div id="top" class="px-1 py-1.5 text-sm text-slate-100"></div><div class="mb-1 h-2 overflow-hidden rounded bg-slate-700" title="Material"><div id="ev" class="h-full bg-stone-100 transition-all" style="width:50%"></div></div><div id="board"></div><div id="bot" class="px-1 py-1.5 text-sm text-slate-100"></div>
+<div class="mt-2 flex items-center gap-2">
+<button data-a="go" data-v="0" class="rounded-xl bg-slate-900 p-3 text-slate-300 hover:bg-slate-800">«</button>
+<button data-a="step" data-v="-1" class="flex-1 rounded-xl bg-slate-800 py-3 text-sm font-medium text-white hover:bg-slate-700">‹ ${T.prev}</button>
+<button data-a="step" data-v="1" class="flex-1 rounded-xl bg-amber-400 py-3 text-sm font-semibold text-slate-900 hover:bg-amber-300">${T.next} ›</button>
+<button data-a="go" data-v="end" class="rounded-xl bg-slate-900 p-3 text-slate-300 hover:bg-slate-800">»</button>
+<button id="auto" data-a="auto" aria-label="Autoplay" class="rounded-xl bg-slate-900 p-3 text-slate-300 hover:bg-slate-800">▶</button>
+<button data-a="flip" aria-label="${T.flip}" class="rounded-xl bg-slate-900 p-3 text-slate-300 hover:bg-slate-800">⇅</button></div>
+<div id="moves" class="mt-3 flex gap-1 overflow-x-auto pb-2"></div>
+<div class="mt-3 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+<div id="live" class="border-b border-slate-800 p-3 text-sm"></div>
+<div id="chat" class="flex h-60 flex-col gap-2 overflow-y-auto p-3"></div>
+<div class="flex gap-2 overflow-x-auto px-3 pb-2">${Object.entries(T.chips).map(([k,l])=>`<button data-a="chip" data-v="${k}" class="shrink-0 rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-amber-400 hover:text-amber-300">${l}</button>`).join("")}</div>
+<div class="flex gap-2 border-t border-slate-800 p-3"><input id="q" value="${esc(draft)}" placeholder="${T.ask}" class="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-amber-400"><button data-a="send" class="rounded-xl bg-amber-400 px-4 text-slate-900 hover:bg-amber-300">➤</button></div></div>`;
+names=[h.White||"White",h.Black||"Black"];paint();paintChat()}
+
+function paint(){const T=TXT[lang],pl=(n,w)=>`<span class="mr-2 inline-block h-3.5 w-3.5 rounded-sm border align-middle ${w?"border-stone-300 bg-stone-100":"border-slate-600 bg-slate-950"}"></span><span class="font-medium">${esc(n)}</span>`;
+document.getElementById("top").innerHTML=flip?pl(names[0],1):pl(names[1],0);
+document.getElementById("bot").innerHTML=flip?pl(names[1],0):pl(names[0],1);
+document.getElementById("board").innerHTML=boardSvg(pos[idx].s,flip);
+document.getElementById("ev").style.width=(50+Math.max(-10,Math.min(10,material(pos[idx].s.b)))*5)+"%";
+const mv=document.getElementById("moves");
+mv.innerHTML=pos.slice(1).map((p,k)=>{const i=k+1;return`<button data-a="go" data-v="${i}" data-i="${i}" class="shrink-0 rounded-lg px-2 py-1 text-xs ${i===idx?"bg-amber-400 font-semibold text-slate-900":"bg-slate-900 text-slate-300 hover:bg-slate-800"}">${i%2?(i+1)/2+". ":""}${esc(p.san)}</button>`}).join("");
+const el=mv.querySelector(`[data-i="${idx}"]`);if(el)mv.scrollLeft=el.offsetLeft-mv.clientWidth/2;
+document.getElementById("live").innerHTML=`<span class="font-semibold text-white">✦ ${idx?T.mv(Math.ceil(idx/2),esc(pos[idx].san)):T.start}.</span> <span class="text-slate-300">${esc(remark(pos,idx,lang))}</span>${swing(pos,idx)<=-3?`<span class="mt-1 block text-amber-300">⚠ ${x(lang,"Дальше материал уходит — жертва или зевок?","Material drops after the reply — sacrifice or blunder?")}</span>`:""}`}
+
+function paintChat(){const c=document.getElementById("chat");if(!c)return;
+c.innerHTML=chat.map(m=>m.f==="me"?`<div class="max-w-[85%] self-end rounded-2xl rounded-br-md bg-amber-400 px-3 py-2 text-sm text-slate-900">${esc(m.t)}</div>`:`<div class="max-w-[92%] self-start rounded-2xl rounded-bl-md bg-slate-800 px-3 py-2 text-sm text-slate-100">${esc(ctext(m))}</div>`).join("")+(typing?`<div class="self-start rounded-2xl rounded-bl-md bg-slate-800 px-3 py-2 text-sm text-slate-400">${TXT[lang].think}</div>`:"");
+c.scrollTop=c.scrollHeight}
+
+function open(txt){const p=build(txt);if(p.length<2){pgnTxt=txt;err=true;view="home";render();return}
+if(txt!==DEMO&&!admin)save(txt);pgnTxt=txt;err=false;pos=p;idx=0;an={};flip=false;op=openingName(txt);chat=[{f:"coach",kind:"greet"}];draft="";view="game";render()}
+/* ── Звук ── */
+let sound=true,AC=null;
+function ac(){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume()}catch{}return AC}
+function knock(c,t,fq,vol){const n=Math.floor(c.sampleRate*.07),b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,4);const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=b;f.type="bandpass";f.frequency.value=fq;f.Q.value=1.4;g.gain.value=vol;s.connect(f);f.connect(g);g.connect(c.destination);s.start(t)}
+function ding(c,t,fq,dur,vol){const o=c.createOscillator(),g=c.createGain();o.frequency.value=fq;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+dur)}
+function click(k){if(!sound)return;const c=ac();if(!c)return;const t=c.currentTime+.02;
+if(k==="cap"){knock(c,t,700,1.6);knock(c,t+.08,1100,.8)}else if(k==="castle"){knock(c,t,1200,1);knock(c,t+.16,1000,1)}else knock(c,t,1300,1);
+if(k==="check")ding(c,t+.06,880,.35,.12);
+if(k==="mate"){ding(c,t+.1,330,.9,.18);ding(c,t+.1,220,1.1,.15)}
+if(k==="promo"){ding(c,t+.08,660,.2,.12);ding(c,t+.2,990,.3,.12)}}
+function moveSound(){const s=pos[idx].san||"",c=pos[idx].s.cap;click(s.includes("#")?"mate":s.includes("+")?"check":s.startsWith("O-O")?"castle":s.includes("=")?"promo":c?"cap":"move")}
+function speak(t){if(!sound||!window.speechSynthesis)return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t),vs=speechSynthesis.getVoices().filter(v=>v.lang.toLowerCase().startsWith(lang)),good=vs.find(v=>/natural|neural|premium|enhanced|online|google|milena|yuri|alena|katya|svetlana|dmitry|samantha|daniel|serena|ava/i.test(v.name))||vs[0];if(good)u.voice=good;u.lang=lang==="ru"?"ru-RU":"en-US";u.rate=.98;speechSynthesis.speak(u)}catch{}}
+let timer=null;
+function stopAuto(){clearInterval(timer);timer=null;const b=document.getElementById("auto");if(b)b.textContent="▶"}
+function toggleAuto(){if(timer)return stopAuto();if(idx>=pos.length-1){idx=0;paint()}timer=setInterval(()=>{if(idx>=pos.length-1)return stopAuto();go(idx+1)},sound&&window.speechSynthesis?4500:1200);document.getElementById("auto").textContent="⏸"}
+function go(i){const j=Math.max(0,Math.min(pos.length-1,i));if(j===idx)return;idx=j;paint();if(idx)moveSound();speak(remark(pos,idx,lang))}
+function send(text,intent){const q=text.trim();if(!q||typing)return;
+const it=intent||classify(q),msg=it==="analyse"?{f:"coach",kind:"analysis",at:idx,n:an[idx]=(an[idx]??-1)+1}:{f:"coach",kind:"reply",intent:it,k:chat.length,at:idx};
+chat.push({f:"me",t:q});draft="";const inp=document.getElementById("q");if(inp)inp.value="";typing=true;paintChat();
+setTimeout(()=>{chat.push(msg);typing=false;paintChat();speak(ctext(msg))},600)}
+
+app.addEventListener("click",e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a,v=b.dataset.v;
+if(a==="lang"){if(v!==lang){const t=document.getElementById("pgn");if(t)pgnTxt=t.value;lang=v;render()}}
+else if(a==="analyse"){games=[];open(document.getElementById("pgn").value)}
+else if(a==="demo"){games=[];open(DEMO)}
+else if(a==="back"){view=view==="game"&&games.length>1?"list":"home";render()}else if(a==="pick")open(games[+v]);
+else if(a==="step")go(idx+ +v);
+else if(a==="go")go(v==="end"?pos.length-1:+v);
+else if(a==="snd"){sound=!sound;if(!sound&&window.speechSynthesis)speechSynthesis.cancel();b.textContent=sound?"🔊":"🔇";b.setAttribute("aria-pressed",sound);if(sound)click("move")}else if(a==="search")search();else if(a==="auto")toggleAuto();else if(a==="saved"){games=[];open(saved()[+v].p)}else if(a==="flip"){flip=!flip;paint()}
+else if(a==="chip")send(TXT[lang].chips[v],v);
+else if(a==="send")send(document.getElementById("q").value)});
+app.addEventListener("input",e=>{if(e.target.id==="q")draft=e.target.value;if(e.target.id==="nick")nick=e.target.value});
+app.addEventListener("change",e=>{if(e.target.id!=="file")return;const f=e.target.files&&e.target.files[0];if(!f)return;f.text().then(loadFile).catch(()=>{err=true;view="home";render()})});
+app.addEventListener("keydown",e=>{if(e.target.id==="q"&&e.key==="Enter")send(e.target.value);if(e.target.id==="nick"&&e.key==="Enter")search()});
+window.addEventListener("keydown",e=>{if(view!=="game"||/INPUT|TEXTAREA/.test(e.target.tagName))return;if(e.key==="ArrowLeft")go(idx-1);if(e.key==="ArrowRight")go(idx+1)});
+let admin=false;
+render();
+</script>
+</body>
+</html>
