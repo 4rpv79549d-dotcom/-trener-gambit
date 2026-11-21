@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Тренер Гамбит</title>
 <meta name="description" content="Разбор шахматных партий по PGN: доска, комментарии тренера, звук и поиск партий по нику Chess.com.">
+<meta name="theme-color" content="#020617">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23fbbf24'/%3E%3Ctext x='32' y='47' font-size='42' text-anchor='middle' fill='%230f172a'%3E%E2%99%9B%3C/text%3E%3C/svg%3E">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:site_name" content="Тренер Гамбит">
+<meta property="og:title" content="Тренер Гамбит — разбор шахматных партий">
+<meta property="og:description" content="Вставьте PGN или найдите свои партии по нику Chess.com: доска, комментарии тренера и подсказки по каждому ходу.">
+<meta property="og:image" content="https://ВАШ-САЙТ/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Тренер Гамбит — разбор шахматных партий">
+<meta name="twitter:description" content="Вставьте PGN или найдите свои партии по нику Chess.com.">
+<meta name="twitter:image" content="https://ВАШ-САЙТ/og.png">
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <style>
 :root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -55,7 +69,7 @@ const hdr=p=>Object.fromEntries([...p.matchAll(/\[(\w+)\s+"([^"]*)"\]/g)].map(m=
 const openingName=p=>{const h=hdr(p);if(h.Opening)return h.Opening;const u=h.ECOUrl;if(!u)return"";const sg=u.split("/").pop().split("-"),i=sg.findIndex(x=>/^\d/.test(x));return(i<0?sg:sg.slice(0,i)).join(" ")};
 const VAL={p:1,n:3,b:3,r:5,q:9};
 const material=b=>b.reduce((a,p)=>p&&VAL[p.toLowerCase()]?a+(white(p)?1:-1)*VAL[p.toLowerCase()]:a,0);
-const swing=(pos,i)=>i<1||i+1>=pos.length?0:(material(pos[i+1].s.b)-material(pos[i-1].s.b))*(i%2?1:-1);
+const swing=(pos,i)=>{if(i<1||i+1>=pos.length)return 0;const j=pos[i+1].s.cap&&i+2<pos.length?i+2:i+1;return(material(pos[j].s.b)-material(pos[i-1].s.b))*(i%2?1:-1)};
 
 /* ── Тексты ── */
 const x=(l,ru,en)=>l==="ru"?ru:en;
@@ -97,14 +111,38 @@ sw<=-3?x(l,"⚠ Риск: после ответа материал уходит 
 x(l,`Сравните ${san} с ходом, который улучшает вашу худшую фигуру.`,`Compare ${san} with a move that improves your worst-placed piece.`),
 x(l,`Тренировка: назовите три ответа соперника на ${san}, затем сверьтесь с партией.`,`Drill: name three replies to ${san}, then compare with the game.`)][k];
 return `(${k+1}/5) ${A} ${B}`}
-function classify(q){const t=q.toLowerCase();if(/разбер|анализ|analy[sz]e|review/.test(t))return"analyse";if(/дебют|opening/.test(t))return"opening";if(/ошиб|зевок|плох|blunder|mistake|wrong|bad/.test(t))return"mistake";if(/оцен|позици|лучше|материал|eval|position|better|material|winning/.test(t))return"eval";if(/дальше|совет|план|что делать|next|advice|plan|what should/.test(t))return"plan";return"other"}
-function reply(intent,pos,i,op,k,l){
-if(intent==="opening")return op?x(l,`Дебют — «${op}». Теорию знать полезно, но понимать идеи полезнее: куда идут фигуры и зачем.`,`The opening is the ${op}. Knowing theory helps, but understanding the ideas helps more: where the pieces go, and why.`):x(l,"Заголовок партии не называет дебют. Смотрите на развитие фигур и центр.","The header doesn’t name the opening, so judge it by development and the centre.");
-if(intent==="mistake"){const f=pos.findIndex((_,j)=>swing(pos,j)<=-3);if(f>0)return x(l,`Подозрительный момент — ход ${Math.ceil(f/2)} (${pos[f].san}): после ответа соперника материал ушёл. Жертва это или зевок — решать вам, но посмотрите.`,`Suspicious moment — move ${Math.ceil(f/2)} (${pos[f].san}): material drops after the reply. Sacrifice or blunder — your call, but take a look.`)}
-if(intent==="mistake")return pick([x(l,"Я бы ткнул в момент, где вы торопились. Пролистайте на пару ходов назад — найдёте сами.","I’d poke at the moment you were rushing. Step back a couple of moves — you’ll spot it."),x(l,"Ошибки любят размены, после которых забывают про шах. Проверьте каждое взятие.","Mistakes love exchanges where everyone forgets about a check. Re-check every capture.")],k);
-if(intent==="eval"){const m=material(pos[i].s.b);if(m===0)return x(l,"Материал равный. Значит, всё решат планы и нервы.","Material is equal. So plans and nerves will decide.");const who=m>0?x(l,"белые","White"):x(l,"чёрные","Black");return x(l,`Материал: ${who} впереди на ${Math.abs(m)}. Но счёт — не приговор, если король соперника без укрытия.`,`Material: ${who} is ahead by ${Math.abs(m)}. But the count isn’t a verdict if the opposing king has no shelter.`)}
-if(intent==="plan")return pick([x(l,"Улучшайте худшую фигуру. Скучно, но работает в девяти партиях из десяти.","Improve your worst piece. Boring, but it works nine games in ten."),x(l,"Проверьте шахи, взятия и угрозы — в таком порядке. Потом ходите.","Check checks, captures and threats — in that order. Then move.")],k);
-const san=pos[i].san;return pick([x(l,`Интересный вопрос. А вы сами что думаете о ходе ${san||"в начальной позиции"}?`,`Interesting question. What do you think of ${san?"the move "+san:"the starting position"} yourself?`),x(l,"Хмм… Я бы сначала посмотрел, какие фигуры у вас ещё не играют.","Hmm… I’d first look at which of your pieces aren’t playing yet.")],k)}
+function classify(q){const t=q.toLowerCase();
+if(/^\s*(привет|здравствуй|добр\S+ (день|вечер|утро)|hello|hi\b|hey)/.test(t))return"hello";
+if(/спасибо|благодар|thanks|thank you/.test(t))return"thanks";
+if(/разбер|анализ|зачем|почему|analy[sz]e|review|why/.test(t))return"analyse";
+if(/дебют|opening/.test(t))return"opening";
+if(/ошиб|зевок|плох|blunder|mistake|wrong|bad/.test(t))return"mistake";
+if(/[a-h][1-8]/.test(t))return"square";
+if(/(^|[^а-яё])(шах|шаха)([^а-яё]|$)|in check/.test(t))return"check";
+if(/ферз|ладь|слон|(^|[^а-яё])кон(ь|я|ю|е|ем|ей|и)([^а-яё]|$)|корол|пешк|queen|rook|bishop|knight|king|pawn/.test(t))return"piece";
+if(/оцен|позици|лучше|материал|выигр|eval|position|better|material|winning/.test(t))return"eval";
+if(/дальше|совет|план|что делать|next|advice|plan|what should/.test(t))return"plan";
+if(/сколько|how many/.test(t))return"count";
+return"other"}
+const FILES="abcdefgh",sqName=i=>FILES[i&7]+(8-(i>>3));
+const NAMEL=(l,p)=>{const t=p.toUpperCase();return l==="ru"?`${PN.ru[t].toLowerCase()} (${white(p)?"белые":"чёрные"})`:`${white(p)?"white":"black"} ${PN.en[t].toLowerCase()}`};
+function reply(intent,pos,i,op,k,l,q=""){const s=pos[i].s,w=s.turn==="w",t=q.toLowerCase(),m=material(s.b),ph=i<=20?0:i<=60?1:2,lm=pos[i].san,who=w?x(l,"белыми","White"):x(l,"чёрными","Black");
+if(intent==="hello")return pick([x(l,"Привет! Листайте партию, а я буду комментировать. Спросите, например, «где ладьи?» или «что на e4?».","Hi! Step through the game and I’ll comment. Ask e.g. “where are the rooks?” or “what’s on e4?”."),x(l,"Здравствуйте! Готов разбирать ходы. С чего начнём?","Hello! Ready to review moves. Where shall we start?"),x(l,"О, снова вы! Что смотрим в партии?","Oh, you again! What are we looking at?")],k);
+if(intent==="thanks")return pick([x(l,"Всегда пожалуйста! Спрашивайте ещё.","Anytime! Ask me more."),x(l,"Рад помочь. Следующий ход?","Glad to help. Next move?"),x(l,"Не за что! Шахматы любят вдумчивых.","No problem! Chess loves the thoughtful.")],k);
+if(intent==="opening"){const nm=op?x(l,`Дебют — «${op}». `,`The opening is the ${op}. `):x(l,"Заголовок партии не называет дебют. ","The header doesn’t name the opening. ");return nm+pick([x(l,"Теорию знать полезно, но понимать идеи полезнее: куда идут фигуры и зачем.","Theory helps, but ideas help more: where the pieces go, and why."),x(l,"В дебюте главное — развитие, центр и безопасность короля.","In the opening it’s development, the centre and king safety."),x(l,"Сравните первые ходы с теорией, но не заучивайте, а понимайте.","Compare the first moves with theory, but understand, don’t memorise.")],k)}
+if(intent==="mistake"){const f=pos.findIndex((_,j)=>swing(pos,j)<=-3);if(f>0&&k===0)return x(l,`Подозрительный момент — ход ${Math.ceil(f/2)} (${pos[f].san}): после ответа соперника материал ушёл. Жертва это или зевок — решать вам, но посмотрите.`,`Suspicious moment — move ${Math.ceil(f/2)} (${pos[f].san}): material drops after the reply. Sacrifice or blunder — your call, but take a look.`);
+return pick([x(l,"Ошибки любят размены, после которых забывают про шах. Проверьте каждое взятие.","Mistakes love exchanges where everyone forgets a check. Re-check every capture."),x(l,"Я бы поискал момент, где вы торопились. Пролистайте на пару ходов назад — найдёте сами.","I’d look for the moment you were rushing. Step back a couple of moves — you’ll spot it."),x(l,"Частая причина зевков — не проверить, что атаковано после хода. Спросите себя: «что теперь под боем?»","A common cause of blunders is not checking what’s attacked after the move. Ask: “what’s hanging now?”"),x(l,"Посмотрите на ход глазами соперника: что он угрожает после этого хода?","Look through the opponent’s eyes: what do they threaten after this move?"),x(l,"Ошибка — не всегда зевок фигуры: иногда это упущенный шанс. Сравните ход с лучшей идеей.","A mistake isn’t always a hung piece: sometimes it’s a missed chance. Compare the move with a better idea.")],k-(f>0?1:0))}
+if(intent==="check"){const ks=s.b.indexOf(w?"K":"k"),ch=ks>=0&&attacked(s.b,ks,w?"b":"w");return ch?x(l,`Да, шах: король на ${sqName(ks)} под ударом — нужно уйти, закрыться или забрать фигуру.`,`Yes, it’s check: the king on ${sqName(ks)} is attacked — move, block or capture.`):x(l,`Сейчас шаха нет. Ход за ${who}.`,`No check right now. ${who} to move.`)}
+if(intent==="square"){const mm=t.match(/[a-h][1-8]/)[0],sq=(8-+mm[1])*8+FILES.indexOf(mm[0]),p=s.b[sq],aw=attacked(s.b,sq,"w"),ab=attacked(s.b,sq,"b"),ctl=aw&&ab?x(l,"её атакуют обе стороны","both sides attack it"):aw?x(l,"её атакуют белые","White attacks it"):ab?x(l,"её атакуют чёрные","Black attacks it"):x(l,"её никто не атакует","nobody attacks it");
+return p?x(l,`На ${mm} стоит ${NAMEL(l,p)}; ${ctl}.`,`${mm}: ${NAMEL(l,p)}; ${ctl}.`):x(l,`Клетка ${mm} пустая; ${ctl}.`,`${mm} is empty; ${ctl}.`)}
+if(intent==="piece"){const map=[[/ферз|queen/,"Q"],[/ладь|rook/,"R"],[/слон|bishop/,"B"],[/кон(ь|я|ю|е|ем|ей|и)([^а-яё]|$)|knight/,"N"],[/корол|king/,"K"],[/пешк|pawn/,"P"]],T=(map.find(([r])=>r.test(t))||[])[1];
+if(T){const g=c=>s.b.map((p,j)=>p===(c?T:T.toLowerCase())?sqName(j):null).filter(Boolean).join(", ")||x(l,"нет","none");return x(l,`${PN.ru[T]}: белые — ${g(1)}; чёрные — ${g(0)}.`,`${PN.en[T]}: White — ${g(1)}; Black — ${g(0)}.`)}}
+if(intent==="eval"){const base=m===0?x(l,"Материал равный.","Material is equal."):x(l,`Материал: ${m>0?"белые":"чёрные"} впереди на ${Math.abs(m)}.`,`Material: ${m>0?"White":"Black"} is ahead by ${Math.abs(m)}.`);const tip=[x(l,"В дебюте важнее развитие и центр, чем лишняя пешка.","In the opening, development and the centre matter more than a spare pawn."),x(l,"В миттельшпиле смотрите на слабые поля и безопасность короля.","In the middlegame, watch weak squares and king safety."),x(l,"В эндшпиле король — активная фигура, а проходные пешки решают.","In the endgame the king is active and passed pawns decide.")][ph];return base+" "+x(l,`Ход за ${who}. `,`${who} to move. `)+tip}
+if(intent==="plan"){const c=[];if(i<=20&&(s.b[60]==="K"||s.b[4]==="k"))c.push(x(l,"Король ещё в центре — подумайте о рокировке и о развитии фигур.","The king is still in the centre — think about castling and developing."));
+if(m!==0)c.push(x(l,"Размен фигур выгоден тому, кто впереди по материалу.","Trading pieces favours whoever is ahead in material."));
+c.push(x(l,"Улучшайте худшую фигуру. Скучно, но работает в девяти партиях из десяти.","Improve your worst piece. Boring, but it works nine games in ten."),x(l,"Проверьте шахи, взятия и угрозы — в таком порядке. Потом ходите.","Check checks, captures and threats — in that order. Then move."),x(l,"Найдите слабые поля соперника и подведите туда коня.","Find the opponent’s weak squares and bring a knight there."));return pick(c,k)}
+if(intent==="count")return x(l,`Сыграно ${Math.ceil((pos.length-1)/2)} ходов (${pos.length-1} полуходов). Сейчас показан ход ${Math.ceil(i/2)||0}.`,`${Math.ceil((pos.length-1)/2)} moves played (${pos.length-1} plies). Showing move ${Math.ceil(i/2)||0}.`);
+return pick([x(l,"Могу разобрать ход, оценить позицию, показать фигуры («где ладьи?») или клетку («что на e4?»). Спросите!","I can review a move, evaluate the position, show pieces (“where are the rooks?”) or a square (“what’s on e4?”). Ask away!"),x(l,"Спросите конкретнее: «это ошибка?», «что дальше?» или «кто лучше?».","Try something specific: “was that a mistake?”, “what next?” or “who’s better?”."),lm?x(l,`Сейчас на доске ход ${lm}. Напишите «разбери ход» — отвечу подробнее.`,`The board shows ${lm}. Type “review this move” for more.`):x(l,"Сделайте первый ход по партии и спросите снова.","Step to a move and ask again."),x(l,"Спросите про дебют, шах, материал или любую клетку — отвечу по позиции.","Ask about the opening, check, material or any square — I’ll answer from the position."),x(l,"Не уверен, что понял. Попробуйте «разбери ход» или назовите клетку, например d5.","Not sure I got that. Try “review this move” or name a square, like d5.")],k)}
 
 /* ── Доска ── */
 const GLYPH={k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"};
@@ -139,7 +177,7 @@ function loadFile(t){const g=t.split(/(?=^\[Event\s)/m).map(s=>s.trim()).filter(
 const SK="gambit-games";
 const saved=()=>{try{return JSON.parse(localStorage.getItem(SK))||[]}catch{return[]}};
 function save(txt){try{const h=hdr(txt),t=h.White&&h.Black?h.White+" — "+h.Black:txt.slice(0,30),l=saved().filter(g=>g.p!==txt);l.unshift({t,p:txt});localStorage.setItem(SK,JSON.stringify(l.slice(0,10)))}catch{}}
-const ctext=m=>m.kind==="analysis"?analysis(pos,m.at,m.n,lang):m.kind==="ai"?m.text:m.kind==="greet"?greet(op,lang):reply(m.intent,pos,m.at,op,m.k,lang);
+const ctext=m=>m.kind==="analysis"?analysis(pos,m.at,m.n,lang):m.kind==="ai"?m.text:m.kind==="greet"?greet(op,lang):reply(m.intent,pos,m.at,op,m.k,lang,m.q);
 
 function head(){const T=TXT[lang];return`<header class="mb-5 flex items-center gap-2.5">
 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-2xl text-slate-900">♛</div>
@@ -210,7 +248,7 @@ function stopAuto(){clearInterval(timer);timer=null;const b=document.getElementB
 function toggleAuto(){if(timer)return stopAuto();if(idx>=pos.length-1){idx=0;paint()}timer=setInterval(()=>{if(idx>=pos.length-1)return stopAuto();go(idx+1)},sound&&window.speechSynthesis?4500:1200);document.getElementById("auto").textContent="⏸"}
 function go(i){const j=Math.max(0,Math.min(pos.length-1,i));if(j===idx)return;idx=j;paint();if(idx)moveSound();speak(remark(pos,idx,lang))}
 function send(text,intent){const q=text.trim();if(!q||typing)return;
-const it=intent||classify(q),msg=it==="analyse"?{f:"coach",kind:"analysis",at:idx,n:an[idx]=(an[idx]??-1)+1}:{f:"coach",kind:"reply",intent:it,k:chat.length,at:idx};
+const it=intent||classify(q),msg=it==="analyse"?{f:"coach",kind:"analysis",at:idx,n:an[idx]=(an[idx]??-1)+1}:{f:"coach",kind:"reply",intent:it,q,k:an["i"+it]=(an["i"+it]??-1)+1,at:idx};
 chat.push({f:"me",t:q});draft="";const inp=document.getElementById("q");if(inp)inp.value="";typing=true;paintChat();
 setTimeout(()=>{chat.push(msg);typing=false;paintChat();speak(ctext(msg))},600)}
 
