@@ -120,6 +120,7 @@ if(/ошиб|зевок|плох|blunder|mistake|wrong|bad/.test(t))return"mista
 if(/[a-h][1-8]/.test(t))return"square";
 if(/(^|[^а-яё])(шах|шаха)([^а-яё]|$)|in check/.test(t))return"check";
 if(/ферз|ладь|слон|(^|[^а-яё])кон(ь|я|ю|е|ем|ей|и)([^а-яё]|$)|корол|пешк|queen|rook|bishop|knight|king|pawn/.test(t))return"piece";
+if(/точност|accuracy/.test(t))return"accuracy";
 if(/оцен|позици|лучше|материал|выигр|eval|position|better|material|winning/.test(t))return"eval";
 if(/дальше|совет|план|что делать|next|advice|plan|what should/.test(t))return"plan";
 if(/сколько|how many/.test(t))return"count";
@@ -130,7 +131,7 @@ function reply(intent,pos,i,op,k,l,q=""){const s=pos[i].s,w=s.turn==="w",t=q.toL
 if(intent==="hello")return pick([x(l,"Привет! Листайте партию, а я буду комментировать. Спросите, например, «где ладьи?» или «что на e4?».","Hi! Step through the game and I’ll comment. Ask e.g. “where are the rooks?” or “what’s on e4?”."),x(l,"Здравствуйте! Готов разбирать ходы. С чего начнём?","Hello! Ready to review moves. Where shall we start?"),x(l,"О, снова вы! Что смотрим в партии?","Oh, you again! What are we looking at?")],k);
 if(intent==="thanks")return pick([x(l,"Всегда пожалуйста! Спрашивайте ещё.","Anytime! Ask me more."),x(l,"Рад помочь. Следующий ход?","Glad to help. Next move?"),x(l,"Не за что! Шахматы любят вдумчивых.","No problem! Chess loves the thoughtful.")],k);
 if(intent==="opening"){const nm=op?x(l,`Дебют — «${op}». `,`The opening is the ${op}. `):x(l,"Заголовок партии не называет дебют. ","The header doesn’t name the opening. ");return nm+pick([x(l,"Теорию знать полезно, но понимать идеи полезнее: куда идут фигуры и зачем.","Theory helps, but ideas help more: where the pieces go, and why."),x(l,"В дебюте главное — развитие, центр и безопасность короля.","In the opening it’s development, the centre and king safety."),x(l,"Сравните первые ходы с теорией, но не заучивайте, а понимайте.","Compare the first moves with theory, but understand, don’t memorise.")],k)}
-if(intent==="mistake"&&eng&&eng.done){const bad=eng.cls.map((c,j)=>c==="??"||c==="?"?j:-1).filter(j=>j>0);if(bad.length){const j=bad[k%bad.length];return x(l,`Stockfish: ход ${Math.ceil(j/2)} (${pos[j].san}) — ${eng.cls[j]}. ${bestTxt(j)}`,`Stockfish: move ${Math.ceil(j/2)} (${pos[j].san}) — ${eng.cls[j]}. ${bestTxt(j)}`)}return x(l,"Stockfish не нашёл грубых ошибок и зевков в этой партии.","Stockfish found no clear mistakes or blunders in this game.")}
+if(intent==="mistake"&&eng&&eng.done){const bad=eng.cls.map((c,j)=>c==="??"||c==="?"?j:-1).filter(j=>j>0);if(bad.length){const j=bad[k%bad.length];return x(l,`Stockfish: ход ${Math.ceil(j/2)} (${pos[j].san}) — ${eng.cls[j]} ${CL[eng.cls[j]].ru}. ${bestTxt(j)}`,`Stockfish: move ${Math.ceil(j/2)} (${pos[j].san}) — ${eng.cls[j]} ${CL[eng.cls[j]].en}. ${bestTxt(j)}`)}return x(l,"Stockfish не нашёл грубых ошибок и зевков в этой партии.","Stockfish found no clear mistakes or blunders in this game.")}
 if(intent==="mistake"){const f=pos.findIndex((_,j)=>swing(pos,j)<=-3);if(f>0&&k===0)return x(l,`Подозрительный момент — ход ${Math.ceil(f/2)} (${pos[f].san}): после ответа соперника материал ушёл. Жертва это или зевок — решать вам, но посмотрите.`,`Suspicious moment — move ${Math.ceil(f/2)} (${pos[f].san}): material drops after the reply. Sacrifice or blunder — your call, but take a look.`);
 return pick([x(l,"Ошибки любят размены, после которых забывают про шах. Проверьте каждое взятие.","Mistakes love exchanges where everyone forgets a check. Re-check every capture."),x(l,"Я бы поискал момент, где вы торопились. Пролистайте на пару ходов назад — найдёте сами.","I’d look for the moment you were rushing. Step back a couple of moves — you’ll spot it."),x(l,"Частая причина зевков — не проверить, что атаковано после хода. Спросите себя: «что теперь под боем?»","A common cause of blunders is not checking what’s attacked after the move. Ask: “what’s hanging now?”"),x(l,"Посмотрите на ход глазами соперника: что он угрожает после этого хода?","Look through the opponent’s eyes: what do they threaten after this move?"),x(l,"Ошибка — не всегда зевок фигуры: иногда это упущенный шанс. Сравните ход с лучшей идеей.","A mistake isn’t always a hung piece: sometimes it’s a missed chance. Compare the move with a better idea.")],k-(f>0?1:0))}
 if(intent==="check"){const ks=s.b.indexOf(w?"K":"k"),ch=ks>=0&&attacked(s.b,ks,w?"b":"w");return ch?x(l,`Да, шах: король на ${sqName(ks)} под ударом — нужно уйти, закрыться или забрать фигуру.`,`Yes, it’s check: the king on ${sqName(ks)} is attacked — move, block or capture.`):x(l,`Сейчас шаха нет. Ход за ${who}.`,`No check right now. ${who} to move.`)}
@@ -143,6 +144,7 @@ if(intent==="eval"){const base=m===0?x(l,"Материал равный.","Mater
 if(intent==="plan"){const c=[];if(i<=20&&(s.b[60]==="K"||s.b[4]==="k"))c.push(x(l,"Король ещё в центре — подумайте о рокировке и о развитии фигур.","The king is still in the centre — think about castling and developing."));
 if(m!==0)c.push(x(l,"Размен фигур выгоден тому, кто впереди по материалу.","Trading pieces favours whoever is ahead in material."));
 c.push(x(l,"Улучшайте худшую фигуру. Скучно, но работает в девяти партиях из десяти.","Improve your worst piece. Boring, but it works nine games in ten."),x(l,"Проверьте шахи, взятия и угрозы — в таком порядке. Потом ходите.","Check checks, captures and threats — in that order. Then move."),x(l,"Найдите слабые поля соперника и подведите туда коня.","Find the opponent’s weak squares and bring a knight there."));return pick(c,k)}
+if(intent==="accuracy")return eng&&eng.done?x(l,`Точность: белые ${accSide(1)}, чёрные ${accSide(0)}.`,`Accuracy: White ${accSide(1)}, Black ${accSide(0)}.`):x(l,"Анализ Stockfish ещё не закончился — подождите, пока он досчитает партию.","The Stockfish analysis isn’t finished yet — wait until it completes the game.");
 if(intent==="count")return x(l,`Сыграно ${Math.ceil((pos.length-1)/2)} ходов (${pos.length-1} полуходов). Сейчас показан ход ${Math.ceil(i/2)||0}.`,`${Math.ceil((pos.length-1)/2)} moves played (${pos.length-1} plies). Showing move ${Math.ceil(i/2)||0}.`);
 return pick([x(l,"Могу разобрать ход, оценить позицию, показать фигуры («где ладьи?») или клетку («что на e4?»). Спросите!","I can review a move, evaluate the position, show pieces (“where are the rooks?”) or a square (“what’s on e4?”). Ask away!"),x(l,"Спросите конкретнее: «это ошибка?», «что дальше?» или «кто лучше?».","Try something specific: “was that a mistake?”, “what next?” or “who’s better?”."),lm?x(l,`Сейчас на доске ход ${lm}. Напишите «разбери ход» — отвечу подробнее.`,`The board shows ${lm}. Type “review this move” for more.`):x(l,"Сделайте первый ход по партии и спросите снова.","Step to a move and ask again."),x(l,"Спросите про дебют, шах, материал или любую клетку — отвечу по позиции.","Ask about the opening, check, material or any square — I’ll answer from the position."),x(l,"Не уверен, что понял. Попробуйте «разбери ход» или назовите клетку, например d5.","Not sure I got that. Try “review this move” or name a square, like d5.")],k)}
 
@@ -159,34 +161,95 @@ if(p){const w=white(p);o+=`<text x="${px+5}" y="${py+7.7}" font-size="8.4" text-
 return`<svg viewBox="0 0 80 80" class="w-full rounded-xl block shadow-2xl shadow-black/50">${o}</svg>`}
 
 /* ── Stockfish ── */
-let eng=null,sf=null,sfp=null,runId=0;
+let eng=null,sf=null,sfp=null,sfKind="",runId=0;
 const SFURL="https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js";
-function sfReady(){if(sfp)return sfp;sfp=new Promise((res,rej)=>{let to;try{sf=new Worker(URL.createObjectURL(new Blob([`importScripts("${SFURL}")`],{type:"text/javascript"})))}catch(e){return rej(e)}
-to=setTimeout(()=>rej(new Error("timeout")),25000);sf.onerror=e=>{if(e&&e.preventDefault)e.preventDefault();clearTimeout(to);rej(new Error("load"))};
-sf.onmessage=e=>{if(String(e.data).includes("uciok")){clearTimeout(to);res()}};sf.postMessage("uci")});sfp.catch(()=>{sfp=null});return sfp}
+function sfStart(kind){return new Promise((res,rej)=>{let w;try{w=kind==="local"?new Worker("stockfish-18-lite-single.js"):new Worker(URL.createObjectURL(new Blob([`importScripts("${SFURL}")`],{type:"text/javascript"})))}catch(e){return rej(e)}
+const to=setTimeout(()=>{try{w.terminate()}catch{}rej(new Error("timeout"))},kind==="local"?30000:25000);
+w.onerror=e=>{if(e&&e.preventDefault)e.preventDefault();clearTimeout(to);try{w.terminate()}catch{}rej(new Error("load"))};
+w.onmessage=e=>{if(String(e.data).includes("uciok")){clearTimeout(to);sf=w;sfKind=kind;res()}};w.postMessage("uci")})}
+function sfReady(){if(sfp)return sfp;sfp=sfStart("local").catch(()=>sfStart("cdn"));sfp.catch(()=>{sfp=null});return sfp}
 function sfEval(moves,ms){return new Promise((res,rej)=>{let score=null;const to=setTimeout(()=>rej(new Error("eval")),ms+15000);
 sf.onmessage=e=>{const m=String(e.data);if(m.startsWith("info")&&!/bound/.test(m)){const c=m.match(/score cp (-?\d+)/),t=m.match(/score mate (-?\d+)/);if(c)score=+c[1];else if(t)score=(+t[1]>0?1:-1)*(10000-Math.abs(+t[1]))}else if(m.startsWith("bestmove")){clearTimeout(to);res({score,best:m.split(" ")[1]})}};
 sf.postMessage("position startpos"+(moves.length?" moves "+moves.join(" "):""));sf.postMessage("go movetime "+ms)})}
 function uci(i){const mv=pos[i].s.mv,pr=pos[i].san.match(/=([QRBN])/);return sqName(mv[0])+sqName(mv[1])+(pr?pr[1].toLowerCase():"")}
-function sfClassify(){const n=pos.length-1,c=v=>Math.max(-1500,Math.min(1500,v));for(let i=1;i<=n;i++){const L=Math.max(0,i%2?c(eng.ev[i-1])-c(eng.ev[i]):c(eng.ev[i])-c(eng.ev[i-1]));eng.cls[i]=L>=300?"??":L>=150?"?":L>=70?"?!":""}}
+const WP=cp=>1/(1+Math.exp(-0.00368208*Math.max(-1500,Math.min(1500,cp))));
+const BOOK=`e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7 Re1 b5 Bb3 d6 c3 O-O h3
+e4 e5 Nf3 Nc6 Bb5 Nf6 O-O Nxe4 d4 Nd6 Bxc6 dxc6 dxe5 Nf5 Qxd8 Kxd8
+e4 e5 Nf3 Nc6 Bb5 Nf6 d3 Bc5 Bxc6 dxc6 O-O Bd6 Nbd2 O-O Nc4 Nd7
+e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Nxe4 d4 b5 Bb3 d5 dxe5 Be6
+e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6 d3 d6 O-O O-O
+e4 e5 Nf3 Nc6 Bc4 Bc5 b4 Bxb4 c3 Ba5 d4 exd4 O-O d6 cxd4 Bb6
+e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Na5 Bb5 c6 dxc6 bxc6 Be2 h6 Nf3 e4 Ne5 Bd6
+e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6 Nc3 Bb4 Nxc6 bxc6 Bd3 d5 exd5 cxd5 O-O O-O
+e4 e5 Nf3 Nc6 d4 exd4 Bc4 Bc5 c3 Nf6 e5 d5 Bb5 Ne4
+e4 e5 Nf3 Nc6 Nc3 Nf6 Bb5 Bb4 O-O O-O d3 d6 Bg5 Bxc3 bxc3 Qe7
+e4 e5 Nf3 Nf6 Nxe5 d6 Nf3 Nxe4 d4 d5 Bd3 Nc6 O-O Be7
+e4 e5 Nf3 d6 d4 Nf6 Nc3 Nbd7 Bc4 Be7
+e4 e5 f4 exf4 Nf3 g5 h4 g4 Ne5
+e4 e5 Bc4 Nf6 d3 c6 Nf3 d5 Bb3 Bd6 Nc3 dxe4
+e4 e5 Nc3 Nf6 f4 d5
+e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Be3 e5 Nb3 Be6
+e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6 Be3 Bg7 f3 O-O Qd2 Nc6
+e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 Nf6 Nc3 e5 Ndb5 d6 Bg5 a6 Na3 b5
+e4 c5 Nf3 e6 d4 cxd4 Nxd4 a6 Bd3 Bc5
+e4 c5 c3 d5 exd5 Qxd5 d4 Nf6 Nf3 Bg4
+e4 e6 d4 d5 Nc3 Nf6 Bg5 Be7 e5 Nfd7 Bxe7 Qxe7 f4 O-O Nf3 c5
+e4 e6 d4 d5 e5 c5 c3 Nc6 Nf3 Qb6 a3 Nh6
+e4 e6 d4 d5 Nd2 Nf6 e5 Nfd7 Bd3 c5 c3 Nc6 Ne2 cxd4 cxd4 f6
+e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6 Nf3 Nd7 h5 Bh7 Bd3 Bxd3 Qxd3 e6
+e4 c6 d4 d5 e5 Bf5 Nf3 e6 Be2 c5 Be3 Nd7 O-O Ne7
+e4 d5 exd5 Qxd5 Nc3 Qa5 d4 Nf6 Nf3 c6
+e4 d6 d4 Nf6 Nc3 g6 Nf3 Bg7 Be2 O-O O-O Bg4
+e4 g6 d4 Bg7 Nc3 d6 f4 Nf6 Nf3 O-O
+d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3 h6 Bh4 b6
+d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4 a4 Bf5 e3 e6 Bxc4 Bb4 O-O Nbd7
+d4 d5 c4 dxc4 Nf3 Nf6 e3 e6 Bxc4 c5 O-O a6
+d4 d5 Nf3 Nf6 c4 e6 Nc3 Be7 Bf4 O-O e3 c5
+d4 d5 Bf4 Nf6 e3 e6 Nf3 Bd6 Bg3 O-O Nbd2 c5 c3 Nc6
+d4 d5 Bf4 c5 e3 Nc6 c3 Nf6 Nd2 e6 Ngf3 Bd6
+d4 d5 e3 Nf6 Bd3 c5 b3 Nc6 Nf3 e6 O-O Bd6
+d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 Nf3 O-O Be2 e5 O-O Nc6 d5 Ne7
+d4 Nf6 c4 e6 Nc3 Bb4 e3 O-O Bd3 d5 Nf3 c5 O-O Nc6
+d4 Nf6 c4 e6 Nf3 b6 g3 Bb7 Bg2 Be7 O-O O-O Nc3 Ne4
+d4 Nf6 Nf3 e6 Bg5 h6 Bh4 d5 e3 Nbd7 Nbd2 Be7
+d4 Nf6 c4 c5 d5 b5 cxb5 a6 bxa6 Bxa6 Nc3 d6 e4 Bxf1 Kxf1 g6
+d4 f5 g3 Nf6 Bg2 e6 Nf3 Be7 O-O O-O c4 d6
+c4 e5 Nc3 Nf6 Nf3 Nc6 g3 d5 cxd5 Nxd5 Bg2 Nb6 O-O Be7
+c4 c5 Nf3 Nf6 Nc3 Nc6 g3 g6 Bg2 Bg7 O-O O-O d4 cxd4 Nxd4
+c4 Nf6 Nc3 e6 e4 d5 e5 d4 exf6 dxc3 bxc3 Qxf6
+Nf3 d5 g3 Nf6 Bg2 e6 O-O Be7 d3 O-O Nbd2 c5 e4 Nc6
+Nf3 Nf6 c4 g6 Nc3 Bg7 e4 O-O d4 d6 Be2 e5
+b3 e5 Bb2 Nc6 e3 d5 Bb5 Bd6 f4 Qh4 g3 Qe7`.split("\n").map(l=>l.split(" "));
+const CL={"!!":{ru:"Блестящий ход",en:"Brilliant",c:"text-cyan-400"},"!":{ru:"Отличный ход",en:"Great move",c:"text-sky-400"},"?!":{ru:"Неточность",en:"Inaccuracy",c:"text-amber-500"},"?":{ru:"Ошибка",en:"Mistake",c:"text-orange-500"},"✖":{ru:"Упущенный шанс",en:"Miss",c:"text-rose-400"},"??":{ru:"Зевок",en:"Blunder",c:"text-rose-500"}};
+function sfClassify(){const n=pos.length-1,san=pos.map(p=>(p.san||"").replace(/[+#]/g,""));eng.loss=[];eng.acc=[];eng.book=[];
+for(let i=1;i<=n;i++){eng.book[i]=BOOK.some(l=>l.length>=i&&san.slice(1,i+1).every((v,j)=>v===l[j]));
+const w=i%2===1,pb=WP(eng.ev[i-1]),pa=WP(eng.ev[i]),b=w?pb:1-pb,a=w?pa:1-pa,L=Math.max(0,b-a);
+eng.loss[i]=L;eng.acc[i]=Math.max(0,Math.min(100,103.1668*Math.exp(-0.04354*(b-a)*100)-3.1669));
+let c=L>=.2?"??":L>=.1?"?":L>=.05?"?!":"";
+if((c==="?!"||c==="?")&&i>1&&(eng.loss[i-1]||0)>=.1&&L>=.07)c="✖";
+if(!c){if(swing(pos,i)<=-2&&L<.02&&b<.88&&a>=.45)c="!!";else if(L<=.005&&b<.45&&eng.best[i-1]&&uci(i)===eng.best[i-1])c="!"}
+eng.cls[i]=eng.book[i]?"":c}}
+const accSide=sd=>{const a=eng.acc.filter((v,j)=>v!=null&&j%2===sd);return a.length?Math.round(a.reduce((p,q)=>p+q,0)/a.length)+"%":"–"};
 async function sfRun(){const id=++runId;if(sf){try{sf.terminate()}catch{}sf=null;sfp=null}
 const n=pos.length-1;eng={ev:new Array(n+1).fill(null),best:[],cls:[],done:false,err:false,prog:0};paint();
-try{await sfReady();if(id!==runId)return;const u=[];for(let i=1;i<=n;i++)u.push(uci(i));
+try{await sfReady();if(id!==runId)return;const u=[],ms=sfKind==="local"?350:200;for(let i=1;i<=n;i++)u.push(uci(i));
 for(let i=0;i<=n;i++){if(id!==runId)return;const san=pos[i].san||"";let v;
-if(san.includes("#"))v=i%2?10000:-10000;else{const r=await sfEval(u.slice(0,i),200);if(id!==runId)return;eng.best[i]=r.best;v=r.score==null?0:(pos[i].s.turn==="w"?r.score:-r.score)}
+if(san.includes("#"))v=i%2?10000:-10000;else{const r=await sfEval(u.slice(0,i),ms);if(id!==runId)return;eng.best[i]=r.best;v=r.score==null?0:(pos[i].s.turn==="w"?r.score:-r.score)}
 eng.ev[i]=v;eng.prog=i/n;paintSf();if(i===idx)paint()}
 sfClassify();eng.done=true;paint()}
 catch{if(id===runId){eng.err=true;paint()}}}
 const evText=v=>Math.abs(v)>=9000?(Math.abs(v)>=10000?"#":(v>0?"+":"−")+"M"+(10000-Math.abs(v))):(v>0?"+":v<0?"−":"")+Math.abs(v/100).toFixed(2);
 const evPct=()=>eng&&eng.ev[idx]!=null?50+Math.max(-1000,Math.min(1000,eng.ev[idx]))/20:50+Math.max(-10,Math.min(10,material(pos[idx].s.b)))*5;
 function bestTxt(j){const b=eng&&eng.best[j-1];if(!b||b.length<4)return"";const pc=pos[j-1].s.b["abcdefgh".indexOf(b[0])+(8-+b[1])*8];return x(lang,`Лучше было: ${pc?PN.ru[pc.toUpperCase()]+" ":""}${b.slice(0,2)}–${b.slice(2,4)}.`,`Better was: ${pc?PN.en[pc.toUpperCase()]+" ":""}${b.slice(0,2)}–${b.slice(2,4)}.`)}
-const mk=i=>eng&&eng.cls[i]?`<span class="${eng.cls[i]==="?!"?"text-amber-600":"text-rose-500"}">${eng.cls[i]}</span>`:"";
-function engLine(i){if(!eng||eng.ev[i]==null)return"";const c=i&&eng.cls[i];return`<span class="mt-1 block text-slate-400">♞ Stockfish: ${evText(eng.ev[i])}${c?` · ${c} ${bestTxt(i)}`:i&&eng.done?` · ${x(lang,"ход хороший","good move")}`:""}</span>`}
+const mk=i=>{if(!eng)return"";if(eng.book&&eng.book[i])return`<span title="book">📖</span>`;const c=eng.cls[i];return c?`<span class="${CL[c].c}">${c}</span>`:""};
+function engLine(i){if(!eng||eng.ev[i]==null)return"";let t="";if(i&&eng.done){const c=eng.cls[i];t=eng.book[i]?x(lang,"теория","book move"):c?`${c} ${CL[c][lang]}${["?!","?","✖","??"].includes(c)?". "+bestTxt(i):""}`:x(lang,"хороший ход","good move")}
+return`<span class="mt-1 block text-slate-400">♞ Stockfish: ${evText(eng.ev[i])}${t?" · "+t:""}</span>`}
 function paintSf(){const el=document.getElementById("sf");if(!el||!eng)return;const n=pos.length-1;
 if(eng.err){el.textContent=x(lang,"♞ Stockfish не загрузился (нужен интернет). Работает лёгкая оценка по материалу.","♞ Stockfish didn’t load (internet needed). Using the lightweight material estimate.");return}
 const pts=eng.ev.map((v,i)=>v==null?null:[i/n*300,30-Math.max(-600,Math.min(600,v))/600*28]).filter(Boolean),line=pts.length>1?`<polyline fill="none" stroke="#fbbf24" stroke-width="1.5" points="${pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")}"/>`:"",cx=(idx/n*300).toFixed(1);
-const cnt=side=>{const o={"??":0,"?":0,"?!":0};eng.cls.forEach((c,j)=>{if(c&&j%2===side)o[c]++});return`?? ${o["??"]} · ? ${o["?"]} · ?! ${o["?!"]}`};
-el.innerHTML=`<div class="mb-1 flex items-center justify-between"><span class="font-medium text-slate-100">♞ Stockfish</span><span>${eng.done?x(lang,"анализ готов","analysis done"):x(lang,"считаю… ","analysing… ")+Math.round(eng.prog*100)+"%"}</span></div><svg data-a="gr" viewBox="0 0 300 60" preserveAspectRatio="none" class="h-16 w-full cursor-pointer rounded-lg bg-slate-950"><line x1="0" x2="300" y1="30" y2="30" stroke="#334155"/>${line}<line x1="${cx}" x2="${cx}" y1="0" y2="60" stroke="#f8fafc" opacity=".7"/></svg>${eng.done?`<div class="mt-2 grid grid-cols-2 gap-2"><div>${x(lang,"Белые","White")}: ${cnt(1)}</div><div>${x(lang,"Чёрные","Black")}: ${cnt(0)}</div></div><p class="mt-2 text-[10px] text-slate-500">Stockfish.js · GPLv3</p>`:""}`}
+const cnt=sd=>Object.keys(CL).map(k=>`${k} ${eng.cls.reduce((a,c,j)=>a+(c===k&&j%2===sd?1:0),0)}`).join(" · ");
+const ver=sfKind==="local"?"18":sfKind==="cdn"?x(lang,"10 (лёгкий)","10 (light)"):"";
+el.innerHTML=`<div class="mb-1 flex items-center justify-between"><span class="font-medium text-slate-100">♞ Stockfish ${ver}</span><span>${eng.done?x(lang,"анализ готов","analysis done"):x(lang,"считаю… ","analysing… ")+Math.round(eng.prog*100)+"%"}</span></div><svg data-a="gr" viewBox="0 0 300 60" preserveAspectRatio="none" class="h-16 w-full cursor-pointer rounded-lg bg-slate-950"><line x1="0" x2="300" y1="30" y2="30" stroke="#334155"/>${line}<line x1="${cx}" x2="${cx}" y1="0" y2="60" stroke="#f8fafc" opacity=".7"/></svg>${eng.done?`<div class="mt-2 grid grid-cols-2 gap-2"><div><b class="text-slate-100">${x(lang,"Белые","White")}: ${accSide(1)}</b><br>${cnt(1)}</div><div><b class="text-slate-100">${x(lang,"Чёрные","Black")}: ${accSide(0)}</b><br>${cnt(0)}</div></div><p class="mt-2 text-[10px] text-slate-500">${x(lang,"Точность считается по формуле, близкой к Lichess, а не к закрытому алгоритму Chess.com. ","Accuracy uses a Lichess-style formula, not Chess.com’s proprietary one. ")}Stockfish.js · GPLv3</p>`:""}`}
 const _paint=paint;paint=function(){_paint();paintSf()};
 /* ── Приложение ── */
 const DEMO=`[Event "Opera Game"]\n[White "Paul Morphy"]\n[Black "Duke of Brunswick & Count Isouard"]\n[Opening "Philidor Defense"]\n\n1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0`;
