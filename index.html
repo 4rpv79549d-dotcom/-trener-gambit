@@ -251,6 +251,14 @@ const cnt=sd=>Object.keys(CL).map(k=>`${k} ${eng.cls.reduce((a,c,j)=>a+(c===k&&j
 const ver=sfKind==="local"?"18":sfKind==="cdn"?x(lang,"10 (лёгкий)","10 (light)"):"";
 el.innerHTML=`<div class="mb-1 flex items-center justify-between"><span class="font-medium text-slate-100">♞ Stockfish ${ver}</span><span>${eng.done?x(lang,"анализ готов","analysis done"):x(lang,"считаю… ","analysing… ")+Math.round(eng.prog*100)+"%"}</span></div><svg data-a="gr" viewBox="0 0 300 60" preserveAspectRatio="none" class="h-16 w-full cursor-pointer rounded-lg bg-slate-950"><line x1="0" x2="300" y1="30" y2="30" stroke="#334155"/>${line}<line x1="${cx}" x2="${cx}" y1="0" y2="60" stroke="#f8fafc" opacity=".7"/></svg>${eng.done?`<div class="mt-2 grid grid-cols-2 gap-2"><div><b class="text-slate-100">${x(lang,"Белые","White")}: ${accSide(1)}</b><br>${cnt(1)}</div><div><b class="text-slate-100">${x(lang,"Чёрные","Black")}: ${accSide(0)}</b><br>${cnt(0)}</div></div><p class="mt-2 text-[10px] text-slate-500">${x(lang,"Точность считается по формуле, близкой к Lichess, а не к закрытому алгоритму Chess.com. ","Accuracy uses a Lichess-style formula, not Chess.com’s proprietary one. ")}Stockfish.js · GPLv3</p>`:""}`}
 const _paint=paint;paint=function(){_paint();paintSf()};
+/* ── Живой чат (нейросеть через ваш Cloudflare Worker) ── */
+const AI_URL="https://yellow-frog-d5e8.anp13916.workers.dev";
+function fen(s){const o=[];for(let r=0;r<8;r++){let e=0,row="";for(let c=0;c<8;c++){const p=s.b[r*8+c];if(p){if(e)row+=e;e=0;row+=p}else e++}if(e)row+=e;o.push(row)}return o.join("/")+" "+s.turn+" - "+(s.ep!=null?"abcdefgh"[s.ep&7]+(8-(s.ep>>3)):"-")+" 0 1"}
+async function askAI(q,intent){if(!AI_URL)return null;
+try{const c=new AbortController(),t=setTimeout(()=>c.abort(),15000),sans=pos.slice(1,idx+1).map((p,i)=>(i%2?"":(i/2+1)+". ")+p.san).join(" "),has=eng&&eng.ev[idx]!=null;
+const body={lang,q:intent==="analyse"?x(lang,"Разбери последний ход.","Review the last move."):q,moves:sans,fen:fen(pos[idx].s),last:idx?pos[idx].san:"",opening:op,eval:has?evText(eng.ev[idx]):"",label:has&&idx&&eng.cls[idx]?CL[eng.cls[idx]].en:"",best:has&&idx&&eng.best[idx-1]?eng.best[idx-1]:""};
+const r=await fetch(AI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:c.signal});clearTimeout(t);if(!r.ok)return null;
+const j=await r.json();return((j.text||"")+"").trim().slice(0,700)||null}catch{return null}}
 /* ── Приложение ── */
 const DEMO=`[Event "Opera Game"]\n[White "Paul Morphy"]\n[Black "Duke of Brunswick & Count Isouard"]\n[Opening "Philidor Defense"]\n\n1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0`;
 const app=document.getElementById("app");
@@ -346,7 +354,7 @@ function go(i){const j=Math.max(0,Math.min(pos.length-1,i));if(j===idx)return;id
 function send(text,intent){const q=text.trim();if(!q||typing)return;
 const it=intent||classify(q),msg=it==="analyse"?{f:"coach",kind:"analysis",at:idx,n:an[idx]=(an[idx]??-1)+1}:{f:"coach",kind:"reply",intent:it,q,k:an["i"+it]=(an["i"+it]??-1)+1,at:idx};
 chat.push({f:"me",t:q});draft="";const inp=document.getElementById("q");if(inp)inp.value="";typing=true;paintChat();
-setTimeout(()=>{chat.push(msg);typing=false;paintChat();speak(ctext(msg))},600)}
+askAI(q,it).then(ai=>{const m=ai?{f:"coach",kind:"ai",text:ai}:msg;chat.push(m);typing=false;paintChat();speak(ctext(m))})}
 
 app.addEventListener("click",e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a,v=b.dataset.v;
 if(a==="lang"){if(v!==lang){const t=document.getElementById("pgn");if(t)pgnTxt=t.value;lang=v;render()}}
