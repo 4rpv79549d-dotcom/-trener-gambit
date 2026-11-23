@@ -114,7 +114,8 @@ return `(${k+1}/5) ${A} ${B}`}
 function classify(q){const t=q.toLowerCase();
 if(/^\s*(привет|здравствуй|добр\S+ (день|вечер|утро)|hello|hi\b|hey)/.test(t))return"hello";
 if(/спасибо|благодар|thanks|thank you/.test(t))return"thanks";
-if(/разбер|анализ|зачем|почему|analy[sz]e|review|why/.test(t))return"analyse";
+if(/кто\s+так(?:ой|ая|ое|ие|ого|ую)(?=\s|$|[?!.,])|кто\s+это(?=\s|$|[?!.,])|кто\s+ты(?=\s|$|[?!.,])|who\s+(?:is|was)\s+(?!better|winning|ahead|losing)|who['’]s\s+(?!better|winning)|who\s+are\s+you/.test(t))return"who";
+if(/разбер|анализ|analy[sz]e|review/.test(t)||/(?:почему|зачем|why)[^?]*(?:ход|сыгра|пошёл|пошел|так(?:\s|$|[?!.,])|здесь|тут|move|play|here|that|this)/.test(t))return"analyse";
 if(/дебют|opening/.test(t))return"opening";
 if(/ошиб|зевок|плох|blunder|mistake|wrong|bad/.test(t))return"mistake";
 if(/[a-h][1-8]/.test(t))return"square";
@@ -123,10 +124,36 @@ if(/ферз|ладь|слон|(^|[^а-яё])кон(ь|я|ю|е|ем|ей|и)([^
 if(/точност|accuracy/.test(t))return"accuracy";
 if(/оцен|позици|лучше|материал|выигр|eval|position|better|material|winning/.test(t))return"eval";
 if(/дальше|совет|план|что делать|next|advice|plan|what should/.test(t))return"plan";
-if(/сколько|how many/.test(t))return"count";
+if(/сколько\s+(?:полу)?ход|how\s+many\s+(?:moves|plies)/.test(t))return"count";
+if(/расскажи|tell me about|что\s+такое|what\s+(?:is|are)\s+(?:a|an|the)\s/.test(t))return"who";
+if(/\?\s*$/.test(t)&&t.trim().split(/\s+/).length>=3)return"who"; // общий вопрос не про партию: отвечаем, а не молчим
 return"other"}
 const FILES="abcdefgh",sqName=i=>FILES[i&7]+(8-(i>>3));
 const NAMEL=(l,p)=>{const t=p.toUpperCase();return l==="ru"?`${PN.ru[t].toLowerCase()} (${white(p)?"белые":"чёрные"})`:`${white(p)?"white":"black"} ${PN.en[t].toLowerCase()}`};
+const PEOPLE=[
+[/магнус|карлсен|carlsen/,"Магнус Карлсен — норвежский гроссмейстер, чемпион мира 2013–2023 годов (в 2023-м он отказался защищать титул); в 2014 году достиг рекордного рейтинга 2882.","Magnus Carlsen is a Norwegian grandmaster and World Champion from 2013 to 2023 (he declined to defend the title in 2023); in 2014 he reached a record rating of 2882."],
+[/каспаров|kasparov/,"Гарри Каспаров — чемпион мира 1985–2000 годов, один из величайших шахматистов; в 1997 году проиграл матч-реванш суперкомпьютеру Deep Blue.","Garry Kasparov was World Champion from 1985 to 2000, one of the greatest players ever; in 1997 he lost a rematch to the Deep Blue supercomputer."],
+[/фишер|fischer/,"Бобби Фишер — американский гроссмейстер, чемпион мира 1972–1975; в 1972 году выиграл матч у Бориса Спасского в Рейкьявике.","Bobby Fischer was an American grandmaster and World Champion from 1972 to 1975; in 1972 he beat Boris Spassky in Reykjavik."],
+[/карпов|karpov/,"Анатолий Карпов — чемпион мира 1975–1985, получивший титул, когда Фишер отказался играть матч; позже много лет соперничал с Каспаровым.","Anatoly Karpov was World Champion from 1975 to 1985, receiving the title when Fischer refused to play the match; he later had a long rivalry with Kasparov."],
+[/морфи|morphy/,"Пол Морфи (1837–1884) — американский шахматист, которого считают неофициальным чемпионом мира своего времени. Его партия «Опера» 1858 года — демо-партия на этом сайте.","Paul Morphy (1837–1884) was an American player regarded as the unofficial world champion of his time. His 1858 Opera Game is the demo game on this site."],
+[/капабланка|capablanca/,"Хосе Рауль Капабланка — кубинский чемпион мира 1921–1927, известный лёгкой и очень точной игрой.","José Raúl Capablanca was a Cuban World Champion from 1921 to 1927, known for effortless, very accurate play."],
+[/алёхин|алехин|alekhine/,"Александр Алёхин — чемпион мира 1927–1935 и 1937–1946, мастер атаки и комбинаций.","Alexander Alekhine was World Champion in 1927–1935 and 1937–1946, a master of attack and combinations."],
+[/(^|[^а-яё])таль([^а-яё]|$)|(^|[^a-z])tal([^a-z]|$)/,"Михаил Таль — «волшебник из Риги», чемпион мира 1960–1961, знаменитый жертвами фигур и атакующим стилем.","Mikhail Tal, “the Magician from Riga”, was World Champion in 1960–1961, famous for piece sacrifices and attacking play."],
+[/ананд|anand/,"Вишванатан Ананд — индийский гроссмейстер, пятикратный чемпион мира.","Viswanathan Anand is an Indian grandmaster and five-time World Champion."],
+[/крамник|kramnik/,"Владимир Крамник — российский гроссмейстер, чемпион мира 2000–2007, выигравший матч у Каспарова.","Vladimir Kramnik is a Russian grandmaster and World Champion from 2000 to 2007, who beat Kasparov in their match."],
+[/накамура|nakamura|хикару|hikaru/,"Хикару Накамура — американский гроссмейстер, один из сильнейших блиц-игроков мира и популярный стример.","Hikaru Nakamura is an American grandmaster, one of the strongest blitz players in the world and a popular streamer."],
+[/дин\s+ли|ding\s+liren/,"Дин Лижэнь — китайский гроссмейстер, чемпион мира 2023–2024.","Ding Liren is a Chinese grandmaster and World Champion in 2023–2024."],
+[/гукеш|gukesh/,"Гукеш Доммараджу — индийский гроссмейстер, в 2024 году в 18 лет ставший самым молодым чемпионом мира.","Gukesh Dommaraju is an Indian grandmaster who became the youngest World Champion in 2024, aged 18."],
+[/stockfish|стокфиш|стоквиш/,"Stockfish — бесплатный шахматный движок с открытым кодом, один из сильнейших в мире; именно он считает оценки на этом сайте.","Stockfish is a free, open-source chess engine, one of the strongest in the world; it computes the evaluations on this site."],
+[/кто\s+ты|who\s+are\s+you|гамбит|gambit\s+coach/,"Я Гамбит — шахматный тренер на этом сайте: комментирую ходы, оцениваю позицию и показываю ошибки по данным Stockfish.","I’m Gambit, the chess coach on this site: I comment on moves, evaluate positions and point out mistakes using Stockfish data."],
+[/рокировк|castl/,"Рокировка — особый ход: король смещается на две клетки к ладье, а ладья встаёт рядом с ним; нужна для безопасности короля.","Castling is a special move: the king shifts two squares toward a rook and the rook jumps beside it; it keeps the king safe."],
+[/(^|[^а-яё])пат([^а-яё]|$)|stalemate/,"Пат — когда у стороны, чей ход, нет ни одного легального хода, но её король не под шахом. Партия заканчивается вничью.","Stalemate is when the side to move has no legal move but is not in check. The game is a draw."],
+[/на\s+проходе|en\s+passant/,"Взятие на проходе — пешка берёт пешку соперника, только что прошедшую две клетки вперёд, как будто та сделала один шаг.","En passant: a pawn captures an enemy pawn that has just advanced two squares, as if it had moved only one."],
+[/гамбит|gambit/,"Гамбит — дебютная жертва (обычно пешки) ради быстрого развития или инициативы.","A gambit is an opening sacrifice (usually a pawn) for fast development or the initiative."],
+[/вилк|(^|[^a-z])fork([^a-z]|$)/,"Вилка — удар одной фигурой сразу по двум и более фигурам соперника.","A fork is one piece attacking two or more enemy pieces at once."],
+[/связк|(^|[^a-z])pin([^a-z]|$)/,"Связка — фигура не может уйти с линии, потому что откроет удар на более ценную фигуру за ней.","A pin means a piece can’t leave its line because that would expose a more valuable piece behind it."]];
+function whoAnswer(t,l){const p=PEOPLE.find(r=>r[0].test(t));
+return p?(l==="ru"?p[1]:p[2]):x(l,"С этим мне сложно помочь: я шахматный тренер и уверенно знаю шахматистов и шахматные термины. Для остального лучше открыть надёжный источник.","I can’t help much with that: I’m a chess coach and I’m confident about players and chess terms. For anything else it’s best to check a reliable source.")}
 function reply(intent,pos,i,op,k,l,q=""){const s=pos[i].s,w=s.turn==="w",t=q.toLowerCase(),m=material(s.b),ph=i<=20?0:i<=60?1:2,lm=pos[i].san,who=w?x(l,"белыми","White"):x(l,"чёрными","Black");
 if(intent==="hello")return pick([x(l,"Привет! Листайте партию, а я буду комментировать. Спросите, например, «где ладьи?» или «что на e4?».","Hi! Step through the game and I’ll comment. Ask e.g. “where are the rooks?” or “what’s on e4?”."),x(l,"Здравствуйте! Готов разбирать ходы. С чего начнём?","Hello! Ready to review moves. Where shall we start?"),x(l,"О, снова вы! Что смотрим в партии?","Oh, you again! What are we looking at?")],k);
 if(intent==="thanks")return pick([x(l,"Всегда пожалуйста! Спрашивайте ещё.","Anytime! Ask me more."),x(l,"Рад помочь. Следующий ход?","Glad to help. Next move?"),x(l,"Не за что! Шахматы любят вдумчивых.","No problem! Chess loves the thoughtful.")],k);
@@ -145,6 +172,7 @@ if(intent==="plan"){const c=[];if(i<=20&&(s.b[60]==="K"||s.b[4]==="k"))c.push(x(
 if(m!==0)c.push(x(l,"Размен фигур выгоден тому, кто впереди по материалу.","Trading pieces favours whoever is ahead in material."));
 c.push(x(l,"Улучшайте худшую фигуру. Скучно, но работает в девяти партиях из десяти.","Improve your worst piece. Boring, but it works nine games in ten."),x(l,"Проверьте шахи, взятия и угрозы — в таком порядке. Потом ходите.","Check checks, captures and threats — in that order. Then move."),x(l,"Найдите слабые поля соперника и подведите туда коня.","Find the opponent’s weak squares and bring a knight there."));return pick(c,k)}
 if(intent==="accuracy")return eng&&eng.done?x(l,`Точность: белые ${accSide(1)}, чёрные ${accSide(0)}.`,`Accuracy: White ${accSide(1)}, Black ${accSide(0)}.`):x(l,"Анализ Stockfish ещё не закончился — подождите, пока он досчитает партию.","The Stockfish analysis isn’t finished yet — wait until it completes the game.");
+if(intent==="who")return whoAnswer(t,l)+" "+x(l,"А по партии — могу разобрать ход, оценить позицию или показать, где стоят фигуры.","As for the game — I can review a move, evaluate the position or show where the pieces stand.");
 if(intent==="count")return x(l,`Сыграно ${Math.ceil((pos.length-1)/2)} ходов (${pos.length-1} полуходов). Сейчас показан ход ${Math.ceil(i/2)||0}.`,`${Math.ceil((pos.length-1)/2)} moves played (${pos.length-1} plies). Showing move ${Math.ceil(i/2)||0}.`);
 return pick([x(l,"Могу разобрать ход, оценить позицию, показать фигуры («где ладьи?») или клетку («что на e4?»). Спросите!","I can review a move, evaluate the position, show pieces (“where are the rooks?”) or a square (“what’s on e4?”). Ask away!"),x(l,"Спросите конкретнее: «это ошибка?», «что дальше?» или «кто лучше?».","Try something specific: “was that a mistake?”, “what next?” or “who’s better?”."),lm?x(l,`Сейчас на доске ход ${lm}. Напишите «разбери ход» — отвечу подробнее.`,`The board shows ${lm}. Type “review this move” for more.`):x(l,"Сделайте первый ход по партии и спросите снова.","Step to a move and ask again."),x(l,"Спросите про дебют, шах, материал или любую клетку — отвечу по позиции.","Ask about the opening, check, material or any square — I’ll answer from the position."),x(l,"Не уверен, что понял. Попробуйте «разбери ход» или назовите клетку, например d5.","Not sure I got that. Try “review this move” or name a square, like d5.")],k)}
 
@@ -265,11 +293,16 @@ const _paint=paint;paint=function(){_paint();paintSf()};
 /* ── Живой чат (нейросеть через ваш Cloudflare Worker) ── */
 const AI_URL="https://yellow-frog-d5e8.anp13916.workers.dev";
 function fen(s){const o=[];for(let r=0;r<8;r++){let e=0,row="";for(let c=0;c<8;c++){const p=s.b[r*8+c];if(p){if(e)row+=e;e=0;row+=p}else e++}if(e)row+=e;o.push(row)}return o.join("/")+" "+s.turn+" - "+(s.ep!=null?"abcdefgh"[s.ep&7]+(8-(s.ep>>3)):"-")+" 0 1"}
-async function askAI(q,intent){if(!AI_URL)return null;
+let aiWhy="";
+async function askAI(q,intent){if(!AI_URL){aiWhy="no url";return null}
 try{const c=new AbortController(),t=setTimeout(()=>c.abort(),15000),sans=pos.slice(1,idx+1).map((p,i)=>(i%2?"":(i/2+1)+". ")+p.san).join(" "),has=eng&&eng.ev[idx]!=null;
 const body={lang,q:intent==="analyse"?x(lang,"Разбери последний ход.","Review the last move."):q,moves:sans,fen:fen(pos[idx].s),last:idx?pos[idx].san:"",opening:op,eval:has?evText(eng.ev[idx]):"",label:has&&idx&&eng.cls[idx]?CL[eng.cls[idx]].en:"",best:has&&idx&&eng.best[idx-1]?eng.best[idx-1]:""};
-const r=await fetch(AI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:c.signal});clearTimeout(t);if(!r.ok){console.log("[askAI]",r.status,"→ fallback");return null}
-const j=await r.json(),out=typeof j.text==="string"?j.text.trim().slice(0,700):"";console.log("[askAI]",r.status,out?out.length+" chars":"empty → fallback");return out||null}catch(e){console.warn("[askAI] error → fallback",e&&e.name||e);return null}}
+const r=await fetch(AI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:c.signal});clearTimeout(t);
+const raw=await r.text();console.log("[askAI] status",r.status,"len",raw.length);
+if(!r.ok){let d="";try{const e=JSON.parse(raw);d=[e.error,e.groq].filter(Boolean).join(" ")}catch{}aiWhy="HTTP "+r.status+(d?" "+d:"");return null}
+let j;try{j=JSON.parse(raw)}catch(e){aiWhy="bad JSON";console.warn("[askAI] json parse failed:",e.message);return null}
+const out=typeof j.text==="string"?j.text.trim().slice(0,700):"";if(!out){aiWhy="empty";console.warn("[askAI] empty text");return null}
+aiWhy="";return out}catch(e){aiWhy=e&&e.name==="AbortError"?"timeout":"network/CORS";console.warn("[askAI] fetch failed:",aiWhy,e&&e.message);return null}}
 /* ── Приложение ── */
 const DEMO=`[Event "Opera Game"]\n[White "Paul Morphy"]\n[Black "Duke of Brunswick & Count Isouard"]\n[Opening "Philidor Defense"]\n\n1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0`;
 const app=document.getElementById("app");
@@ -343,7 +376,7 @@ const el=mv.querySelector(`[data-i="${idx}"]`);if(el)mv.scrollLeft=el.offsetLeft
 document.getElementById("live").innerHTML=cardHtml(idx)}
 
 function paintChat(){const c=document.getElementById("chat");if(!c)return;
-c.innerHTML=chat.map(m=>m.f==="me"?`<div class="max-w-[85%] self-end rounded-2xl rounded-br-md bg-amber-400 px-3 py-2 text-sm text-slate-900">${esc(m.t)}</div>`:`<div class="max-w-[92%] self-start rounded-2xl rounded-bl-md bg-slate-800 px-3 py-2 text-sm text-slate-100">${esc(ctext(m))}</div>`).join("")+(typing?`<div class="self-start rounded-2xl rounded-bl-md bg-slate-800 px-3 py-2 text-sm text-slate-400">${TXT[lang].think}</div>`:"");
+c.innerHTML=chat.map(m=>m.f==="me"?`<div class="max-w-[85%] self-end rounded-2xl rounded-br-md bg-amber-400 px-3 py-2 text-sm text-slate-900">${esc(m.t)}</div>`:`<div class="max-w-[92%] self-start rounded-2xl rounded-bl-md bg-slate-800 px-3 py-2 text-sm text-slate-100">${esc(ctext(m))}${m.aiFail?`<span class="mt-1 block text-xs text-slate-400">⚠ ${x(lang,`AI недоступен (${esc(m.aiFail)}) — отвечаю по шаблону`,`AI unavailable (${esc(m.aiFail)}) — using a template reply`)}</span>`:""}</div>`).join("")+(typing?`<div class="self-start rounded-2xl rounded-bl-md bg-slate-800 px-3 py-2 text-sm text-slate-400">${TXT[lang].think}</div>`:"");
 c.scrollTop=c.scrollHeight}
 
 function open(txt){const p=build(txt);if(p.length<2){pgnTxt=txt;err=true;view="home";render();return}
@@ -364,6 +397,7 @@ let timer=null;
 function stopAuto(){clearInterval(timer);timer=null;const b=document.getElementById("auto");if(b)b.textContent="▶"}
 function toggleAuto(){if(timer)return stopAuto();if(idx>=pos.length-1){idx=0;paint()}timer=setInterval(()=>{if(idx>=pos.length-1)return stopAuto();go(idx+1)},sound&&window.speechSynthesis?4500:1200);document.getElementById("auto").textContent="⏸"}
 function go(i){const j=Math.max(0,Math.min(pos.length-1,i));if(j===idx)return;idx=j;paint();if(idx)moveSound();speak(remark(pos,idx,lang))}
+const LOCAL=["analyse","mistake","plan"]; // вопросы, где шаблон и так даёт точный локальный ответ
 function send(text,intent){const q=String(text||"").trim();if(!q||typing)return;
 typing=true; // замок СРАЗУ и синхронно: до chat.push, до счётчиков an и до askAI
 try{const it=intent||classify(q),msg=it==="analyse"?{f:"coach",kind:"analysis",at:idx,n:an[idx]=(an[idx]??-1)+1}:{f:"coach",kind:"reply",intent:it,q,k:an["i"+it]=(an["i"+it]??-1)+1,at:idx};
@@ -372,7 +406,8 @@ chat.push({f:"me",t:q});draft="";const inp=document.getElementById("q");if(inp)i
 let answer=msg; // по умолчанию шаблон; заменяется только непустым ответом нейросети
 askAI(q,it).then(ai=>{if(typeof ai==="string"&&ai.trim())answer={f:"coach",kind:"ai",text:ai.trim()}})
 .catch(e=>console.warn("[send] askAI failed, using template",e))
-.finally(()=>{chat.push(answer);typing=false;paintChat();speak(ctext(chat[chat.length-1]))})}
+.finally(()=>{if(answer.kind!=="ai"){console.warn("[askAI] fallback",{q,intent:it,why:aiWhy});if(AI_URL&&!LOCAL.includes(it))answer={...answer,aiFail:aiWhy||"?"}}
+chat.push(answer);typing=false;paintChat();speak(ctext(chat[chat.length-1]))})}
 catch(e){typing=false;paintChat();console.error("[send]",e)}}
 
 app.addEventListener("click",e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a,v=b.dataset.v;
